@@ -1,0 +1,20 @@
+# MseisM 1Panel 应用元数据
+name: mseism
+icon: icon.png
+tags:
+  - 监控
+  - 设备管理
+  - IoT
+category: tool
+title: "MseisM 设备监控系统"
+description: "基于 Vue3+Node.js+MySQL 的设备监控系统，支持实时监控、分组管理、WebSocket 推送"
+descriptionEn: "Device monitoring system based on Vue3+Node.js+MySQL, supporting real-time monitoring, group management, and WebSocket push"
+website: "https://github.com/your-org/mseism"
+github: "https://github.com/your-org/mseism"
+document: "https://github.com/your-org/mseism/blob/main/README.md"
+readme: "./README.md"
+version: "1.0.0"
+require: ">=1.10.0"
+architectures:
+  - amd64
+  - arm64

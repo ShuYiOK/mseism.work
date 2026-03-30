@@ -1,0 +1,28 @@
+[Unit]
+Description=MseisM Device Monitoring System
+Documentation=https://github.com/your-org/mseism
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+
+WorkingDirectory=/opt/mseism
+
+# 启动服务
+ExecStart=/usr/local/bin/docker-compose -f docker-compose.prod.yml up -d
+
+# 停止服务
+ExecStop=/usr/local/bin/docker-compose -f docker-compose.prod.yml down
+
+# 重启服务
+ExecReload=/usr/local/bin/docker-compose -f docker-compose.prod.yml restart
+
+# 超时设置
+TimeoutStartSec=300
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

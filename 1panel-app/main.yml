@@ -1,0 +1,185 @@
+# MseisM 设备监控系统
+# 1Panel 应用配置文件
+
+# 应用基本信息
+name: mseism
+tags:
+  - 监控
+  - 设备管理
+  - IoT
+shortDescZh: 设备监控系统
+shortDescEn: Device Monitoring System
+type: tool
+recommend: 0
+website: https://github.com/your-org/mseism
+github: https://github.com/your-org/mseism
+document: https://github.com/your-org/mseism/blob/main/README.md
+readme: ./README.md
+lastVersion: 1.0.0
+
+# 应用图标
+icon: ./icon.png
+
+# 版本信息
+versions:
+  - version: 1.0.0
+    dockerCompose: ./docker-compose.yml
+    params:
+      - key: DB_ROOT_PASSWORD
+        labelZh: "数据库 Root 密码"
+        labelEn: "Database Root Password"
+        type: password
+        random: true
+        required: true
+        rule: "^[a-zA-Z0-9]{8,20}$"
+        
+      - key: DB_NAME
+        labelZh: "数据库名称"
+        labelEn: "Database Name"
+        type: text
+        default: "mseism"
+        required: true
+        
+      - key: DB_USER
+        labelZh: "数据库用户"
+        labelEn: "Database User"
+        type: text
+        default: "mseism"
+        required: true
+        
+      - key: DB_PASSWORD
+        labelZh: "数据库密码"
+        labelEn: "Database Password"
+        type: password
+        random: true
+        required: true
+        rule: "^[a-zA-Z0-9]{8,20}$"
+        
+      - key: DB_PORT
+        labelZh: "数据库端口"
+        labelEn: "Database Port"
+        type: number
+        default: 3306
+        required: true
+        
+      - key: BACKEND_PORT
+        labelZh: "后端服务端口"
+        labelEn: "Backend Port"
+        type: number
+        default: 3001
+        required: true
+        
+      - key: FRONTEND_PORT
+        labelZh: "前端服务端口"
+        labelEn: "Frontend Port"
+        type: number
+        default: 80
+        required: true
+        
+      - key: JWT_SECRET
+        labelZh: "JWT 密钥"
+        labelEn: "JWT Secret"
+        type: password
+        random: true
+        required: true
+        rule: "^[a-zA-Z0-9]{32,64}$"
+        
+      - key: DEVICE_API_URL
+        labelZh: "设备 API 地址"
+        labelEn: "Device API URL"
+        type: text
+        default: "http://124.238.104.120:81/devices/list"
+        required: true
+
+    containers:
+      - service: mysql
+        name: mysql
+        image: mysql:8.0
+        ports:
+          - target: 3306
+            published: "${DB_PORT}"
+        volumes:
+          - mseism_mysql_data:/var/lib/mysql
+          - ./mysql-init.sql:/docker-entrypoint-initdb.d/init.sql
+        environment:
+          MYSQL_ROOT_PASSWORD: "${DB_ROOT_PASSWORD}"
+          MYSQL_DATABASE: "${DB_NAME}"
+          MYSQL_USER: "${DB_USER}"
+          MYSQL_PASSWORD: "${DB_PASSWORD}"
+          TZ: Asia/Shanghai
+        networks:
+          - mseism-network
+        healthcheck:
+          test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+          interval: 10s
+          timeout: 5s
+          retries: 5
+          start_period: 30s
+        command:
+          - --character-set-server=utf8mb4
+          - --collation-server=utf8mb4_unicode_ci
+
+      - service: backend
+        name: backend
+        image: mseism-backend:1.0.0
+        build:
+          context: ./server
+          dockerfile: Dockerfile
+        ports:
+          - target: 3001
+            published: "${BACKEND_PORT}"
+        volumes:
+          - ./server/logs:/app/logs
+        environment:
+          NODE_ENV: production
+          PORT: 3001
+          DB_HOST: mysql
+          DB_PORT: 3306
+          DB_USER: "${DB_USER}"
+          DB_PASSWORD: "${DB_PASSWORD}"
+          DB_NAME: "${DB_NAME}"
+          DEVICE_API_URL: "${DEVICE_API_URL}"
+          JWT_SECRET: "${JWT_SECRET}"
+          ALLOWED_ORIGINS: "http://localhost,http://localhost:${FRONTEND_PORT}"
+        depends_on:
+          mysql:
+            condition: service_healthy
+        networks:
+          - mseism-network
+        healthcheck:
+          test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/api/health"]
+          interval: 30s
+          timeout: 10s
+          retries: 3
+          start_period: 10s
+
+      - service: frontend
+        name: frontend
+        image: mseism-frontend:1.0.0
+        build:
+          context: ./client
+          dockerfile: Dockerfile
+          args:
+            VITE_API_URL: /api
+            VITE_SOCKET_URL: ""
+        ports:
+          - target: 80
+            published: "${FRONTEND_PORT}"
+        depends_on:
+          - backend
+        networks:
+          - mseism-network
+        healthcheck:
+          test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+          interval: 30s
+          timeout: 10s
+          retries: 3
+          start_period: 5s
+
+networks:
+  mseism-network:
+    driver: bridge
+
+volumes:
+  mseism_mysql_data:
+    driver: local
