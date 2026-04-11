@@ -45,6 +45,9 @@ const configSchema = Joi.object({
   // CORS 配置
   ALLOWED_ORIGINS: Joi.string().default('http://localhost:5173,http://localhost:3000'),
   
+  // 初始管理员密码（仅在首次创建管理员时使用）
+  INITIAL_ADMIN_PASSWORD: Joi.string().min(8).default('admin123'),
+  
   // 安全配置
   MAX_LOGIN_ATTEMPTS: Joi.number().integer().min(1).default(5),
   LOGIN_LOCKOUT_TIME: Joi.number().integer().min(1).default(30),
@@ -65,6 +68,13 @@ const configSchema = Joi.object({
   API_RATE_LIMIT_MAX: Joi.number().integer().min(1).default(100),
   SYNC_RATE_LIMIT_WINDOW: Joi.number().integer().min(1000).default(60000),
   SYNC_RATE_LIMIT_MAX: Joi.number().integer().min(1).default(10),
+  
+  // Redis 配置（用于分布式限流和缓存）
+  REDIS_HOST: Joi.string().default('localhost'),
+  REDIS_PORT: Joi.number().integer().min(1).max(65535).default(6379),
+  REDIS_PASSWORD: Joi.string().allow('').default(''),
+  REDIS_DB: Joi.number().integer().min(0).max(15).default(0),
+  REDIS_ENABLED: Joi.boolean().default(false),
 });
 
 // 配置验证和加载
@@ -125,6 +135,7 @@ function loadConfig() {
     // 密码加密配置
     security: {
       bcryptRounds: envConfig.BCRYPT_ROUNDS,
+      initialAdminPassword: envConfig.INITIAL_ADMIN_PASSWORD,
       maxLoginAttempts: envConfig.MAX_LOGIN_ATTEMPTS,
       loginLockoutTime: envConfig.LOGIN_LOCKOUT_TIME,
     },
@@ -159,6 +170,15 @@ function loadConfig() {
         windowMs: envConfig.SYNC_RATE_LIMIT_WINDOW,
         max: envConfig.SYNC_RATE_LIMIT_MAX,
       },
+    },
+    
+    // Redis 配置
+    redis: {
+      host: envConfig.REDIS_HOST,
+      port: envConfig.REDIS_PORT,
+      password: envConfig.REDIS_PASSWORD,
+      db: envConfig.REDIS_DB,
+      enabled: envConfig.REDIS_ENABLED,
     },
   };
 }
@@ -300,6 +320,7 @@ module.exports = {
   JWT_REFRESH_TOKEN_EXPIRES_IN: currentConfig.jwt.refreshTokenExpiresIn,
   JWT_ALGORITHM: currentConfig.jwt.algorithm,
   BCRYPT_ROUNDS: currentConfig.security.bcryptRounds,
+  INITIAL_ADMIN_PASSWORD: currentConfig.security.initialAdminPassword,
   ALLOWED_ORIGINS: currentConfig.cors.allowedOrigins,
   MAX_LOGIN_ATTEMPTS: currentConfig.security.maxLoginAttempts,
   LOGIN_LOCKOUT_TIME: currentConfig.security.loginLockoutTime,

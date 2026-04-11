@@ -5,7 +5,7 @@
 
 const express = require('express');
 const router = express.Router();
-const authService = require('../services/authService');
+const auth = require('../auth');
 const { apiRateLimit } = require('../middlewares/rateLimitMiddleware');
 const { authenticateToken } = require('../middlewares/authMiddleware');
 
@@ -19,26 +19,43 @@ function asyncHandler(fn) {
 // 用户登录
 router.post('/login', apiRateLimit(), asyncHandler(async (req, res) => {
   const { username, password } = req.body;
-  if (!username || !password) {
+  if (username === undefined || password === undefined) {
     return res.status(400).json({ success: false, error: '用户名和密码不能为空' });
   }
-  const result = await authService.login(username, password);
-  res.json(result);
+  const ip = req.ip || req.connection.remoteAddress || '';
+  const userAgent = req.get('User-Agent') || '';
+  const result = await auth.login(username, password, ip, userAgent);
+  res.json({
+    success: true,
+    data: {
+      user: result.user,
+      tokens: {
+        access_token: result.accessToken,
+        refresh_token: result.refreshToken
+      }
+    }
+  });
 }));
 
 // 刷新 token
 router.post('/refresh', apiRateLimit(), asyncHandler(async (req, res) => {
   const { refresh_token } = req.body;
-  if (!refresh_token) {
+  if (refresh_token === undefined) {
     return res.status(400).json({ success: false, error: '刷新 token 不能为空' });
   }
-  const result = await authService.refreshToken(refresh_token);
-  res.json(result);
+  const result = await auth.refreshAccessToken(refresh_token);
+  res.json({
+    success: true,
+    data: {
+      accessToken: result.accessToken,
+      user: result.user
+    }
+  });
 }));
 
 // 获取当前用户信息
 router.get('/me', apiRateLimit(), authenticateToken, asyncHandler(async (req, res) => {
-  const user = await authService.getUserById(req.user.id);
+  const user = await auth.getUserById(req.user.userId || req.user.id);
   res.json({ success: true, data: user });
 }));
 

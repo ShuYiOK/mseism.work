@@ -97,23 +97,30 @@
 
     <!-- 设备列表 - 使用虚拟滚动 -->
     <template v-else>
-      <!-- 卡片视图 -->
+      <!-- 卡片视图 - 使用虚拟滚动 -->
       <div v-if="viewMode === 'card'" class="device-grid-container">
-        <div class="device-cards-wrapper">
-          <div 
-            v-for="(item, index) in filteredDevices" 
-            :key="item.id"
-            class="device-card-wrapper"
-          >
-            <DeviceCard
-              :device="item"
-              :index="index"
-              @dragstart="handleDragStart($event, item, index)"
-              @dragend="handleDragEnd($event)"
-              @drop="handleDrop($event, index)"
-            />
-          </div>
-        </div>
+        <VirtualGrid
+          ref="virtualGridRef"
+          :items="filteredDevices"
+          :item-height="200"
+          :item-width="300"
+          :gap="20"
+          container-height="600px"
+          :buffer-size="3"
+          item-key="id"
+        >
+          <template #item="{ item, index }">
+            <div class="device-card-wrapper">
+              <DeviceCard
+                :device="item"
+                :index="index"
+                @dragstart="handleDragStart($event, item, index)"
+                @dragend="handleDragEnd($event)"
+                @drop="handleDrop($event, index)"
+              />
+            </div>
+          </template>
+        </VirtualGrid>
       </div>
 
       <!-- 表格视图 -->
@@ -186,6 +193,7 @@ import socketService from '../utils/socket'
 import { useDeviceStore } from '../stores/devices'
 import getDeviceWorker from '../utils/deviceWorkerManager'
 import VirtualList from '../components/VirtualList.vue'
+import VirtualGrid from '../components/VirtualGrid.vue'
 import Skeleton from '../components/Skeleton.vue'
 import DeviceCard from '../components/DeviceCard.vue'
 import StatCard from '../components/StatCard.vue'
@@ -246,6 +254,7 @@ const deviceStore = useDeviceStore()
 
 // 虚拟滚动引用
 const virtualListRef = ref(null)
+const virtualGridRef = ref(null)
 
 // Web Worker 实例 - 用于处理数据密集型操作
 const deviceWorker = getDeviceWorker()
@@ -384,6 +393,9 @@ watch(selectedGroup, (newGroup) => {
   // 重置虚拟滚动位置
   if (virtualListRef.value) {
     virtualListRef.value.scrollTo(0)
+  }
+  if (virtualGridRef.value) {
+    virtualGridRef.value.scrollTo(0)
   }
 })
 
@@ -544,50 +556,58 @@ const handleGroupUpdate = (group) => {
   deviceStore.updateGroup(group)
 }
 
-/**
- * 处理分组删除事件
- */
 const handleGroupDelete = (data) => {
   deviceStore.removeGroup(data.id)
 }
 
-// 生命周期
+const handleGroupCreate = (group) => {
+  deviceStore.updateGroup(group)
+}
 
-/**
- * 组件挂载时
- */
+const handleDeviceAdded = (data) => {
+  deviceStore.addDeviceToGroup(data.deviceId, data.groupId)
+  if (data.group) {
+    deviceStore.updateGroup(data.group)
+  }
+}
+
+const handleDeviceRemoved = (data) => {
+  deviceStore.removeDeviceFromGroup(data.deviceId, data.groupId)
+  if (data.group) {
+    deviceStore.updateGroup(data.group)
+  }
+}
+
 onMounted(() => {
-  // 连接 WebSocket
   socketService.connect()
 
-  // 获取设备和分组数据
   fetchDevices()
   fetchGroups()
 
-  // 监听增量更新事件
   socketService.on('devices:added', handleDevicesAdded)
   socketService.on('devices:updated', handleDevicesUpdated)
   socketService.on('device:delete', handleDeviceDelete)
   socketService.on('sync:heartbeat', handleSyncHeartbeat)
   socketService.on('sync:error', handleSyncError)
+  socketService.on('group:create', handleGroupCreate)
   socketService.on('group:update', handleGroupUpdate)
   socketService.on('group:delete', handleGroupDelete)
+  socketService.on('group:device_added', handleDeviceAdded)
+  socketService.on('group:device_removed', handleDeviceRemoved)
 })
 
-/**
- * 组件卸载时
- */
 onUnmounted(() => {
-  // 清理 Socket 监听
   socketService.off('devices:added', handleDevicesAdded)
   socketService.off('devices:updated', handleDevicesUpdated)
   socketService.off('device:delete', handleDeviceDelete)
   socketService.off('sync:heartbeat', handleSyncHeartbeat)
   socketService.off('sync:error', handleSyncError)
+  socketService.off('group:create', handleGroupCreate)
   socketService.off('group:update', handleGroupUpdate)
   socketService.off('group:delete', handleGroupDelete)
+  socketService.off('group:device_added', handleDeviceAdded)
+  socketService.off('group:device_removed', handleDeviceRemoved)
   
-  // 销毁 Web Worker
   deviceWorker.destroy()
 })
 

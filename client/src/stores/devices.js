@@ -1,6 +1,7 @@
 /**
  * 设备数据 Store - 优化版
  * 管理设备列表、分组列表和设备分组映射
+ * 支持数据持久化，页面刷新后自动恢复
  */
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
@@ -11,6 +12,7 @@ export const useDeviceStore = defineStore('devices', () => {
   const devices = ref([])
   const groups = ref([])
   const deviceGroupsMap = ref({}) // 设备 ID -> 分组 ID 数组
+  const groupDevicesMap = ref({}) // 分组 ID -> 设备 ID 数组
   const loading = ref(false)
 
   // 计算属性
@@ -24,10 +26,62 @@ export const useDeviceStore = defineStore('devices', () => {
     devices.value.filter(d => !d.online)
   )
 
+  const onlineCount = computed(() => onlineDevices.value.length)
+
+  const offlineCount = computed(() => offlineDevices.value.length)
+
+  // 缓存：分组ID -> 设备数量
+  const groupDeviceCountCache = computed(() => {
+    const cache = {}
+    const countMap = {}
+    
+    for (const deviceGroups of Object.values(deviceGroupsMap.value)) {
+      for (const groupId of deviceGroups) {
+        countMap[groupId] = (countMap[groupId] || 0) + 1
+      }
+    }
+    
+    for (const group of groups.value) {
+      cache[group.id] = countMap[group.id] || 0
+    }
+    
+    return cache
+  })
+
+  // 缓存：分组ID -> 设备列表
+  const groupDevicesCache = computed(() => {
+    const cache = {}
+    const deviceMap = new Map(devices.value.map(d => [d.id, d]))
+    
+    for (const group of groups.value) {
+      const deviceIds = groupDevicesMap.value[group.id] || []
+      cache[group.id] = deviceIds
+        .map(id => deviceMap.get(id))
+        .filter(Boolean)
+    }
+    
+    return cache
+  })
+
+  // 缓存：分组统计信息
+  const groupStatsCache = computed(() => {
+    const stats = {}
+    
+    for (const group of groups.value) {
+      const groupDevices = groupDevicesCache.value[group.id] || []
+      stats[group.id] = {
+        total: groupDevices.length,
+        online: groupDevices.filter(d => d.online).length,
+        offline: groupDevices.filter(d => !d.online).length
+      }
+    }
+    
+    return stats
+  })
+
+  // 优化版：获取分组设备数量（使用缓存）
   const groupDeviceCount = (groupId) => {
-    return Object.values(deviceGroupsMap.value).filter(
-      groupIds => groupIds.includes(groupId)
-    ).length
+    return groupDeviceCountCache.value[groupId] || 0
   }
 
   // 获取设备所属的所有分组
@@ -41,11 +95,14 @@ export const useDeviceStore = defineStore('devices', () => {
     return groups.includes(groupId)
   }
 
-  // 过滤某个分组的设备
+  // 优化版：获取分组设备（使用缓存）
   const getDevicesByGroup = (groupId) => {
-    return devices.value.filter(device =>
-      isDeviceInGroup(device.id, groupId)
-    )
+    return groupDevicesCache.value[groupId] || []
+  }
+
+  // 获取分组统计信息（使用缓存）
+  const getGroupStats = (groupId) => {
+    return groupStatsCache.value[groupId] || { total: 0, online: 0, offline: 0 }
   }
 
   // 加载所有设备
@@ -192,6 +249,13 @@ export const useDeviceStore = defineStore('devices', () => {
 
   // 添加设备到分组
   const addDeviceToGroup = (deviceId, groupId) => {
+    // 更新分组设备映射
+    if (!groupDevicesMap.value[groupId]) {
+      groupDevicesMap.value[groupId] = []
+    }
+    if (!groupDevicesMap.value[groupId].includes(deviceId)) {
+      groupDevicesMap.value[groupId].push(deviceId)
+    }
     if (!deviceGroupsMap.value[deviceId]) {
       deviceGroupsMap.value[deviceId] = []
     }
@@ -202,6 +266,16 @@ export const useDeviceStore = defineStore('devices', () => {
 
   // 从分组移除设备
   const removeDeviceFromGroup = (deviceId, groupId) => {
+    // 更新分组设备映射
+    if (groupDevicesMap.value[groupId]) {
+      const idx = groupDevicesMap.value[groupId].indexOf(deviceId)
+      if (idx !== -1) {
+        groupDevicesMap.value[groupId].splice(idx, 1)
+        if (groupDevicesMap.value[groupId].length === 0) {
+          delete groupDevicesMap.value[groupId]
+        }
+      }
+    }
     const groups = deviceGroupsMap.value[deviceId]
     if (groups) {
       const index = groups.indexOf(groupId)
@@ -269,16 +343,23 @@ export const useDeviceStore = defineStore('devices', () => {
     devices,
     groups,
     deviceGroupsMap,
+    groupDevicesMap,
     loading,
     // 计算属性
     deviceCount,
     onlineDevices,
     offlineDevices,
+    onlineCount,
+    offlineCount,
+    groupDeviceCountCache,
+    groupDevicesCache,
+    groupStatsCache,
     // 方法
     groupDeviceCount,
     getDeviceGroups,
     isDeviceInGroup,
     getDevicesByGroup,
+    getGroupStats,
     loadDevices,
     loadGroups,
     loadDevicesAndGroupsOptimized,
@@ -294,5 +375,17 @@ export const useDeviceStore = defineStore('devices', () => {
     fetchOnlineDevices,
     fetchOfflineDevices,
     fetchGroupDeviceStats
+  }
+}, {
+  persist: {
+    key: 'mseism-device-store',
+    storage: localStorage,
+    paths: ['devices', 'groups', 'deviceGroupsMap', 'groupDevicesMap'],
+    beforeRestore: (ctx) => {
+      console.log('[Store] 开始恢复设备数据...')
+    },
+    afterRestore: (ctx) => {
+      console.log('[Store] 设备数据恢复完成，设备数量:', ctx.store.devices?.length || 0)
+    }
   }
 })

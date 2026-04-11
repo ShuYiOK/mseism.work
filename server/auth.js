@@ -194,7 +194,7 @@ async function createDefaultAdmin() {
   
   if (!adminExists) {
     const adminId = crypto.randomUUID();
-    const passwordHash = bcrypt.hashSync('admin123', CONFIG.BCRYPT_ROUNDS);
+    const passwordHash = bcrypt.hashSync(CONFIG.INITIAL_ADMIN_PASSWORD, CONFIG.BCRYPT_ROUNDS);
     
     await query(`
       INSERT INTO users (id, username, password_hash, email, role, permissions, is_active, email_verified)
@@ -212,7 +212,7 @@ async function createDefaultAdmin() {
     
     console.log('[认证系统] 默认管理员账户已创建');
     console.log('[认证系统] 用户名: admin');
-    console.log('[认证系统] 密码: admin123');
+    console.log('[认证系统] 密码: ' + CONFIG.INITIAL_ADMIN_PASSWORD + ' (来自环境变量)');
     console.log('[认证系统] ⚠️  请立即修改默认密码！');
   }
 }

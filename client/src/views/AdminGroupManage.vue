@@ -1,6 +1,5 @@
 <template>
   <div class="group-manage">
-    <!-- 创建分组卡片 -->
     <div class="card create-group-card">
       <h2>➕ 创建新分组</h2>
       <div class="create-form">
@@ -26,7 +25,6 @@
       </div>
     </div>
 
-    <!-- 分组列表 -->
     <div v-if="loading" class="loading-state">
       <Skeleton type="card" :count="3" />
     </div>
@@ -40,7 +38,6 @@
         class="card group-card"
         :style="{ borderLeftColor: group?.color }"
       >
-        <!-- 分组头部 -->
         <div class="group-header">
           <div class="group-info">
             <h3>{{ group?.name || '未知分组' }}</h3>
@@ -57,7 +54,6 @@
           </div>
         </div>
 
-        <!-- 分组设备列表 -->
         <div class="group-devices">
           <button @click="openDeviceSelectModal(group?.id)" class="btn btn-secondary">
             ➕ 批量添加设备
@@ -90,7 +86,6 @@
       </div>
     </div>
 
-    <!-- 编辑分组模态框 -->
     <div v-if="editingGroup" class="modal-overlay" @click="closeEditModal">
       <div class="modal" @click.stop>
         <div class="modal-header">
@@ -118,34 +113,36 @@
       </div>
     </div>
 
-    <!-- 设备选择模态框 -->
     <div v-if="deviceSelectModal" class="modal-overlay" @click="closeDeviceSelectModal">
       <div class="modal modal-large" @click.stop>
         <div class="modal-header">
-          <h2>➕ 批量添加设备</h2>
+          <h2>➕ 批量添加设备到「{{ currentGroupName }}」</h2>
           <button @click="closeDeviceSelectModal" class="btn-icon">✕</button>
         </div>
         <div class="modal-body">
           <div class="selection-info">
-            已选择 <strong>{{ selectedDevices.length }}</strong> 台设备
+            已选择 <strong>{{ selectedDevices.length }}</strong> 台设备（其中 <strong class="text-warning">{{ alreadyInGroupDevices.length }}</strong> 台已在分组中）
           </div>
           <div class="device-select-list">
             <div
               v-for="device in devices"
               :key="device.id"
               class="device-select-item"
+              :class="{ 'device-already-in': isDeviceInGroup(device.id) }"
             >
-              <label class="checkbox-label">
+              <label class="checkbox-label" :class="{ 'label-disabled': isDeviceInGroup(device.id) }">
                 <input
                   type="checkbox"
-                  :value="device?.id"
+                  :value="device.id"
                   v-model="selectedDevices"
+                  :disabled="isDeviceInGroup(device.id)"
                 />
                 <span :class="device?.online ? 'status-online' : 'status-offline'">
                   {{ device?.online ? '🟢' : '🔴' }}
                 </span>
                 <span class="device-name">{{ device?.name || device?.id }}</span>
                 <span class="device-ip">{{ device?.ip_address || '无 IP' }}</span>
+                <span v-if="isDeviceInGroup(device.id)" class="already-in-tag">已添加</span>
               </label>
             </div>
             <div v-if="devices.length === 0" class="no-devices">暂无设备</div>
@@ -156,9 +153,9 @@
           <button
             @click="confirmAddDevices"
             class="btn btn-primary"
-            :disabled="selectedDevices.length === 0"
+            :disabled="newDevicesToAdd.length === 0"
           >
-            确认添加 ({{ selectedDevices.length }})
+            确认添加 ({{ newDevicesToAdd.length }})
           </button>
         </div>
       </div>
@@ -167,7 +164,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { groupApi, deviceApi } from '../api'
 import socketService from '../utils/socket'
 import { useDeviceStore } from '../stores/devices'
@@ -180,14 +177,30 @@ const newGroup = ref({ name: '', description: '', color: '#667eea' })
 const editingGroup = ref(null)
 const editForm = ref({ name: '', description: '', color: '' })
 
-// 设备选择
 const deviceSelectModal = ref(false)
 const currentGroupId = ref(null)
 const selectedDevices = ref([])
 const devices = ref([])
 const groupDevices = ref({})
 
-// 加载数据
+const currentGroupName = computed(() => {
+  const group = deviceStore.groups.find(g => g.id === currentGroupId.value)
+  return group?.name || '未知分组'
+})
+
+const alreadyInGroupDevices = computed(() => {
+  return selectedDevices.value.filter(id => isDeviceInGroup(id))
+})
+
+const newDevicesToAdd = computed(() => {
+  return selectedDevices.value.filter(id => !isDeviceInGroup(id))
+})
+
+const isDeviceInGroup = (deviceId) => {
+  const groupDevs = groupDevices.value[currentGroupId.value] || []
+  return groupDevs.some(d => d.id === deviceId)
+}
+
 const loadData = async () => {
   try {
     await deviceStore.loadGroups()
@@ -198,13 +211,11 @@ const loadData = async () => {
       devices.value = deviceRes.data.data
     }
   } catch (err) {
-    // API拦截器已处理错误
   } finally {
     loading.value = false
   }
 }
 
-// 更新分组设备列表
 const updateGroupDevices = () => {
   const result = {}
   deviceStore.groups.forEach(group => {
@@ -213,7 +224,6 @@ const updateGroupDevices = () => {
   groupDevices.value = result
 }
 
-// 创建分组
 const createGroup = async () => {
   if (!newGroup.value.name.trim()) {
     if (window.toast) window.toast.warning('请输入分组名称')
@@ -233,7 +243,6 @@ const createGroup = async () => {
   }
 }
 
-// 编辑分组
 const editGroup = (group) => {
   if (!group) return
   editingGroup.value = group
@@ -268,7 +277,6 @@ const saveEditGroup = async () => {
   }
 }
 
-// 删除分组
 const deleteGroup = async (id) => {
   if (!confirm('确定要删除该分组吗？此操作不可恢复。')) return
 
@@ -282,7 +290,6 @@ const deleteGroup = async (id) => {
   }
 }
 
-// 从分组移除设备
 const removeDeviceFromGroup = async (groupId, deviceId) => {
   if (!confirm('确定要从该分组移除此设备吗？')) return
 
@@ -297,10 +304,11 @@ const removeDeviceFromGroup = async (groupId, deviceId) => {
   }
 }
 
-// 打开设备选择模态框
 const openDeviceSelectModal = async (groupId) => {
   currentGroupId.value = groupId
   selectedDevices.value = []
+
+  await loadGroupDevicesForModal(groupId)
 
   if (devices.value.length === 0) {
     try {
@@ -316,36 +324,57 @@ const openDeviceSelectModal = async (groupId) => {
   deviceSelectModal.value = true
 }
 
-// 关闭设备选择模态框
+const loadGroupDevicesForModal = async (groupId) => {
+  try {
+    const res = await groupApi.getDevices(groupId)
+    if (res.data.success) {
+      groupDevices.value[groupId] = res.data.data
+    }
+  } catch (err) {
+    console.error('加载分组设备失败:', err)
+  }
+}
+
 const closeDeviceSelectModal = () => {
   deviceSelectModal.value = false
   currentGroupId.value = null
   selectedDevices.value = []
 }
 
-// 确认添加设备
 const confirmAddDevices = async () => {
-  if (!currentGroupId.value || selectedDevices.value.length === 0) return
+  if (!currentGroupId.value || newDevicesToAdd.value.length === 0) return
+
+  if (alreadyInGroupDevices.value.length > 0) {
+    if (window.toast) {
+      window.toast.warning(
+        `已跳过 ${alreadyInGroupDevices.value.length} 台已在分组中的设备`,
+        { title: '提示' }
+      )
+    }
+  }
 
   try {
-    for (const deviceId of selectedDevices.value) {
+    for (const deviceId of newDevicesToAdd.value) {
       await groupApi.addDevice(currentGroupId.value, deviceId)
     }
 
     await deviceStore.loadGroupDevices(currentGroupId.value)
     await deviceStore.loadGroups()
     updateGroupDevices()
-    closeDeviceSelectModal()
 
     if (window.toast) {
-      window.toast.success(`成功添加 ${selectedDevices.value.length} 台设备`)
+      window.toast.success(`成功添加 ${newDevicesToAdd.value.length} 台设备`)
     }
+
+    closeDeviceSelectModal()
   } catch (err) {
-    if (window.toast) window.toast.error('添加失败：' + err.message)
+    const errorMsg = err.response?.data?.error || err.message
+    if (window.toast) {
+      window.toast.error(`添加失败：${errorMsg}`, { title: '错误' })
+    }
   }
 }
 
-// Socket 事件处理
 const handleGroupUpdate = (group) => {
   deviceStore.updateGroup(group)
 }
@@ -356,6 +385,23 @@ const handleGroupDelete = (data) => {
 
 const handleGroupCreate = (group) => {
   deviceStore.updateGroup(group)
+  updateGroupDevices()
+}
+
+const handleDeviceAdded = (data) => {
+  deviceStore.addDeviceToGroup(data.deviceId, data.groupId)
+  if (data.group) {
+    deviceStore.updateGroup(data.group)
+  }
+  updateGroupDevices()
+}
+
+const handleDeviceRemoved = (data) => {
+  deviceStore.removeDeviceFromGroup(data.deviceId, data.groupId)
+  if (data.group) {
+    deviceStore.updateGroup(data.group)
+  }
+  updateGroupDevices()
 }
 
 onMounted(() => {
@@ -364,12 +410,16 @@ onMounted(() => {
   socketService.on('group:update', handleGroupUpdate)
   socketService.on('group:delete', handleGroupDelete)
   socketService.on('group:create', handleGroupCreate)
+  socketService.on('group:device_added', handleDeviceAdded)
+  socketService.on('group:device_removed', handleDeviceRemoved)
 })
 
 onUnmounted(() => {
   socketService.off('group:update', handleGroupUpdate)
   socketService.off('group:delete', handleGroupDelete)
   socketService.off('group:create', handleGroupCreate)
+  socketService.off('group:device_added', handleDeviceAdded)
+  socketService.off('group:device_removed', handleDeviceRemoved)
 })
 </script>
 
@@ -380,7 +430,6 @@ onUnmounted(() => {
   gap: 20px;
 }
 
-/* 卡片样式 */
 .card {
   background: white;
   border-radius: 12px;
@@ -394,7 +443,6 @@ onUnmounted(() => {
   font-size: 1.2em;
 }
 
-/* 创建表单 */
 .create-form {
   display: flex;
   gap: 12px;
@@ -426,7 +474,6 @@ onUnmounted(() => {
   cursor: pointer;
 }
 
-/* 按钮样式 */
 .btn {
   padding: 10px 20px;
   border: none;
@@ -492,7 +539,6 @@ onUnmounted(() => {
   color: #333;
 }
 
-/* 分组卡片 */
 .group-card {
   border-left: 4px solid #667eea;
 }
@@ -532,7 +578,6 @@ onUnmounted(() => {
   border-radius: 16px;
 }
 
-/* 设备列表 */
 .group-devices {
   border-top: 1px solid #e0e0e0;
   padding-top: 16px;
@@ -586,7 +631,6 @@ onUnmounted(() => {
   padding: 24px;
 }
 
-/* 空状态和加载状态 */
 .empty-state {
   text-align: center;
   padding: 60px 20px;
@@ -597,7 +641,6 @@ onUnmounted(() => {
   padding: 20px 0;
 }
 
-/* 模态框 */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -670,7 +713,6 @@ onUnmounted(() => {
   border-top: 1px solid #e0e0e0;
 }
 
-/* 表单 */
 .form-group {
   margin-bottom: 16px;
 }
@@ -691,7 +733,6 @@ onUnmounted(() => {
   width: 100%;
 }
 
-/* 设备选择列表 */
 .selection-info {
   padding: 12px;
   background: #f0f7ff;
@@ -699,6 +740,10 @@ onUnmounted(() => {
   margin-bottom: 16px;
   color: #667eea;
   font-size: 0.9em;
+}
+
+.selection-info .text-warning {
+  color: #ff9800;
 }
 
 .device-select-list {
@@ -709,6 +754,10 @@ onUnmounted(() => {
 
 .device-select-item {
   padding: 8px 0;
+}
+
+.device-select-item.device-already-in {
+  opacity: 0.7;
 }
 
 .checkbox-label {
@@ -725,13 +774,32 @@ onUnmounted(() => {
   background: #f9fafb;
 }
 
+.checkbox-label.label-disabled {
+  cursor: not-allowed;
+  background: #f5f5f5;
+}
+
 .checkbox-label input[type="checkbox"] {
   width: 18px;
   height: 18px;
   cursor: pointer;
 }
 
-/* 响应式 */
+.checkbox-label input[type="checkbox"]:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.already-in-tag {
+  font-size: 0.75em;
+  padding: 2px 8px;
+  background: #ff9800;
+  color: white;
+  border-radius: 10px;
+  font-weight: 600;
+  margin-left: auto;
+}
+
 @media (max-width: 768px) {
   .create-form {
     flex-direction: column;

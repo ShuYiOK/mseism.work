@@ -86,6 +86,10 @@ class SocketService {
     // 设备更新事件
     this.socket.on('device:update', (data) => {
       this.lastActivityTime = Date.now()
+      // 如果消息需要确认，发送 ack
+      if (data._requireAck && data._messageId) {
+        this.socket.emit('message:ack', data._messageId)
+      }
       this.emit('device:update', data)
     })
 
@@ -148,14 +152,17 @@ class SocketService {
       this.emit('group:delete', data)
     })
 
-    return this.socket
-  }
+    this.socket.on('group:device_added', (data) => {
+      this.lastActivityTime = Date.now()
+      this.emit('group:device_added', data)
+    })
 
-  disconnect() {
-    if (this.socket) {
-      this.socket.disconnect()
-      this.socket = null
-    }
+    this.socket.on('group:device_removed', (data) => {
+      this.lastActivityTime = Date.now()
+      this.emit('group:device_removed', data)
+    })
+
+    return this.socket
   }
 
   // 加入分组房间
@@ -182,7 +189,7 @@ class SocketService {
     this.listeners.get(event).add(callback)
 
     // 如果是 socket 事件，注册到 socket
-    if (this.socket && ['device:update', 'devices:batch', 'devices:added', 'devices:updated', 'device:delete', 'group:create', 'group:update', 'group:delete', 'sync:heartbeat', 'sync:error'].includes(event)) {
+    if (this.socket && ['device:update', 'devices:batch', 'devices:added', 'devices:updated', 'device:delete', 'group:create', 'group:update', 'group:delete', 'group:device_added', 'group:device_removed', 'sync:heartbeat', 'sync:error'].includes(event)) {
       this.socket.on(event, callback)
     }
 

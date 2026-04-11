@@ -204,62 +204,62 @@ export const deviceApi = {
 
 // 分组相关 API
 export const groupApi = {
-  getAll: (config) => api.get('http://localhost:3001/api/groups', config),
-  getById: (id, config) => api.get(`http://localhost:3001/api/groups/${id}`, config),
-  getDevices: (id, config) => api.get(`http://localhost:3001/api/groups/${id}/devices`, config),
-  create: (data, config) => api.post('http://localhost:3001/api/groups', data, config),
-  update: (id, data, config) => api.put(`http://localhost:3001/api/groups/${id}`, data, config),
-  delete: (id, config) => api.delete(`http://localhost:3001/api/groups/${id}`, config),
+  getAll: (config) => api.get('/groups', config),
+  getById: (id, config) => api.get(`/groups/${id}`, config),
+  getDevices: (id, config) => api.get(`/groups/${id}/devices`, config),
+  create: (data, config) => api.post('/groups', data, config),
+  update: (id, data, config) => api.put(`/groups/${id}`, data, config),
+  delete: (id, config) => api.delete(`/groups/${id}`, config),
   addDevice: (groupId, deviceId, config) =>
-    api.post(`http://localhost:3001/api/groups/${groupId}/devices`, { deviceId }, config),
+    api.post(`/groups/${groupId}/devices`, { deviceId }, config),
   removeDevice: (groupId, deviceId, config) =>
-    api.delete(`http://localhost:3001/api/groups/${groupId}/devices/${deviceId}`, config),
+    api.delete(`/groups/${groupId}/devices/${deviceId}`, config),
 
   // 批量查询
   getGroupsByIds: (groupIds, config) =>
-    api.post('http://localhost:3001/api/groups/batch', { groupIds }, config),
+    api.post('/groups/batch', { groupIds }, config),
   getAllWithDevices: (config) =>
-    api.get('http://localhost:3001/api/groups-with-devices', config),
+    api.get('/groups-with-devices', config),
   getStats: (config) =>
-    api.get('http://localhost:3001/api/groups/stats', config)
+    api.get('/groups/stats', config)
 }
 
 // 批量查询相关 API
 export const batchApi = {
   getDevicesByIds: (deviceIds, config) =>
-    api.post('http://localhost:3001/api/devices/batch', { deviceIds }, config),
+    api.post('/devices/batch', { deviceIds }, config),
   getGroupsByIds: (groupIds, config) =>
-    api.post('http://localhost:3001/api/groups/batch', { groupIds }, config),
+    api.post('/groups/batch', { groupIds }, config),
   getAllGroupsWithDevices: (config) =>
-    api.get('http://localhost:3001/api/groups-with-devices', config),
+    api.get('/groups-with-devices', config),
   getAllDevicesWithGroups: (config) =>
-    api.get('http://localhost:3001/api/devices-with-groups', config),
+    api.get('/devices-with-groups', config),
   getDeviceGroupMappings: (config) =>
-    api.get('http://localhost:3001/api/device-group-mappings', config),
+    api.get('/device-group-mappings', config),
   getOnlineDevices: (limit, config) =>
-    api.get(`http://localhost:3001/api/devices/online${limit ? '?limit=' + limit : ''}`, config),
+    api.get(`/devices/online${limit ? '?limit=' + limit : ''}`, config),
   getOfflineDevices: (limit, config) =>
-    api.get(`http://localhost:3001/api/devices/offline${limit ? '?limit=' + limit : ''}`, config),
+    api.get(`/devices/offline${limit ? '?limit=' + limit : ''}`, config),
   getDevicesByStatus: (status, limit, config) =>
-    api.get(`http://localhost:3001/api/devices/status/${status}${limit ? '?limit=' + limit : ''}`, config)
+    api.get(`/devices/status/${status}${limit ? '?limit=' + limit : ''}`, config)
 }
 
 // 同步相关 API
 export const syncApi = {
-  getStatus: (config) => api.get('http://localhost:3001/api/sync/status', config),
-  trigger: (config) => api.post('http://localhost:3001/api/sync/trigger', {}, config)
+  getStatus: (config) => api.get('/sync/status', config),
+  trigger: (config) => api.post('/sync/trigger', {}, config)
 }
 
 // 性能监控相关 API
 export const performanceApi = {
-  getStats: (config) => api.get('http://localhost:3001/api/performance/stats', config),
-  reset: (config) => api.post('http://localhost:3001/api/performance/reset', {}, config)
+  getStats: (config) => api.get('/performance/stats', config),
+  reset: (config) => api.post('/performance/reset', {}, config)
 }
 
 // 日志相关 API
 export const logApi = {
-  getErrors: (limit = 100, config) => api.get(`http://localhost:3001/api/logs/errors?limit=${limit}`, config),
-  getAccess: (limit = 100, config) => api.get(`http://localhost:3001/api/logs/access?limit=${limit}`, config),
+  getErrors: (limit = 100, config) => api.get(`/logs/errors?limit=${limit}`, config),
+  getAccess: (limit = 100, config) => api.get(`/logs/access?limit=${limit}`, config),
   getOperations: (options = {}, config) => {
     const params = new URLSearchParams()
     if (options.type) params.append('type', options.type)
@@ -270,9 +270,9 @@ export const logApi = {
     if (options.startTime) params.append('startTime', options.startTime)
     if (options.endTime) params.append('endTime', options.endTime)
 
-    return api.get(`http://localhost:3001/api/logs/operations?${params.toString()}`, config)
+    return api.get(`/logs/operations?${params.toString()}`, config)
   },
-  getStats: (config) => api.get('http://localhost:3001/api/logs/stats', config)
+  getStats: (config) => api.get('/logs/stats', config)
 }
 
 // 导出所有 API 模块

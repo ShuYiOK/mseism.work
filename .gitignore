@@ -87,3 +87,21 @@ pids
 .env.test.local
 .env.production.local
 .env.local
+
+# SSH keys & secrets
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+mseism_deploy*
+
+# Docker
+docker-compose.override.yml
+
+# Backups
+backups/
+*.bak
+*.backup
+
+# WorkBuddy (IDE 辅助工具)
+.workbuddy/

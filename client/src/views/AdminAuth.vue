@@ -2,16 +2,22 @@
   <div class="auth-page">
     <div class="auth-container">
       <h1>🔐 后台管理</h1>
-      <p class="auth-desc">请输入管理密码访问后台管理功能</p>
-      
+      <p class="auth-desc">请输入管理员账号密码访问后台管理功能</p>
+
       <form @submit.prevent="handleLogin" class="auth-form">
-        <input 
-          type="password" 
-          v-model="password" 
-          placeholder="请输入密码" 
+        <input
+          type="text"
+          v-model="username"
+          placeholder="用户名 (admin)"
+          class="text-input"
+          autocomplete="username"
+        />
+        <input
+          type="password"
+          v-model="password"
+          placeholder="密码"
           class="password-input"
-          ref="passwordInput"
-          autocomplete="off"
+          autocomplete="current-password"
         />
         <button type="submit" class="login-btn" :disabled="loading">
           {{ loading ? '验证中...' : '进入' }}
@@ -19,7 +25,7 @@
       </form>
 
       <p v-if="error" class="error-msg">{{ error }}</p>
-      
+
       <div class="auth-footer">
         <router-link to="/" class="back-link">← 返回设备列表</router-link>
       </div>
@@ -30,16 +36,21 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAuthStore } from '../stores/auth'
 
 const router = useRouter()
+const authStore = useAuthStore()
+
+const username = ref('admin')
 const password = ref('')
 const loading = ref(false)
 const error = ref('')
 
-// 管理密码（实际项目中应该从后端验证）
-const ADMIN_PASSWORD = 'admin123'
-
 const handleLogin = async () => {
+  if (!username.value.trim()) {
+    error.value = '请输入用户名'
+    return
+  }
   if (!password.value.trim()) {
     error.value = '请输入密码'
     return
@@ -48,20 +59,23 @@ const handleLogin = async () => {
   loading.value = true
   error.value = ''
 
-  // 模拟验证延迟
-  await new Promise(resolve => setTimeout(resolve, 300))
+  try {
+    await authStore.login(username.value, password.value)
 
-  if (password.value === ADMIN_PASSWORD) {
-    // 验证成功，存储会话标记
-    sessionStorage.setItem('adminAuthenticated', 'true')
-    sessionStorage.setItem('adminAuthTime', Date.now().toString())
-    router.push('/admin')
-  } else {
-    error.value = '密码错误，请重试'
+    if (authStore.isAdmin) {
+      sessionStorage.setItem('adminAuthenticated', 'true')
+      sessionStorage.setItem('adminAuthTime', Date.now().toString())
+      router.push('/admin')
+    } else {
+      error.value = '非管理员账号，无权访问后台'
+      authStore.logout()
+    }
+  } catch (err) {
+    error.value = err.message || '登录失败，请检查账号密码'
     password.value = ''
+  } finally {
+    loading.value = false
   }
-
-  loading.value = false
 }
 </script>
 
@@ -103,6 +117,7 @@ const handleLogin = async () => {
   gap: 15px;
 }
 
+.text-input,
 .password-input {
   padding: 15px 20px;
   border: 2px solid #e0e0e0;
@@ -112,6 +127,7 @@ const handleLogin = async () => {
   transition: border-color 0.3s ease;
 }
 
+.text-input:focus,
 .password-input:focus {
   outline: none;
   border-color: #667eea;

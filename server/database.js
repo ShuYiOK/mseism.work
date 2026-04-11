@@ -13,6 +13,15 @@ const cache = require('./cache');
 let db;
 let query;
 
+// 健康检查相关
+let healthCheckInterval = null;
+let isReconnecting = false;
+let lastHealthCheckTime = null;
+let connectionErrors = 0;
+const HEALTH_CHECK_INTERVAL = 30000; // 30秒检查一次
+const MAX_CONNECTION_ERRORS = 3; // 最大连续错误次数
+const RECONNECT_DELAY = 5000; // 重连延迟5秒
+
 // 初始化数据库连接
 async function initDatabaseConnection() {
   // 强制使用MySQL
@@ -96,6 +105,145 @@ async function initDatabaseConnection() {
     console.error('  密码:', config.database.password ? '********' : '空');
     console.error('  数据库:', config.database.database);
     throw error;
+  }
+}
+
+// 数据库连接池健康检查
+async function checkPoolHealth() {
+  if (!db) {
+    console.warn('[健康检查] 数据库连接池不存在');
+    return false;
+  }
+  
+  try {
+    const connection = await db.getConnection();
+    await connection.ping();
+    connection.release();
+    
+    lastHealthCheckTime = Date.now();
+    connectionErrors = 0; // 重置错误计数
+    
+    return true;
+  } catch (error) {
+    connectionErrors++;
+    console.error(`[健康检查] 数据库连接池健康检查失败 (错误次数: ${connectionErrors}/${MAX_CONNECTION_ERRORS}):`, error.message);
+    
+    // 超过最大错误次数，尝试重连
+    if (connectionErrors >= MAX_CONNECTION_ERRORS && !isReconnecting) {
+      console.warn('[健康检查] 连续错误次数过多，尝试重新连接数据库...');
+      await reconnectDatabase();
+    }
+    
+    return false;
+  }
+}
+
+// 获取连接池状态
+function getPoolStatus() {
+  if (!db) {
+    return {
+      connected: false,
+      status: 'disconnected',
+      message: '数据库连接池未初始化'
+    };
+  }
+  
+  try {
+    // mysql2 连接池的状态信息
+    const poolInfo = {
+      connected: true,
+      status: 'connected',
+      lastHealthCheck: lastHealthCheckTime ? new Date(lastHealthCheckTime).toISOString() : 'never',
+      connectionErrors: connectionErrors,
+      isReconnecting: isReconnecting
+    };
+    
+    return poolInfo;
+  } catch (error) {
+    return {
+      connected: false,
+      status: 'error',
+      message: error.message
+    };
+  }
+}
+
+// 自动重连数据库
+async function reconnectDatabase() {
+  if (isReconnecting) {
+    console.log('[重连] 已有重连任务正在进行中，跳过');
+    return false;
+  }
+  
+  isReconnecting = true;
+  console.log('[重连] 开始尝试重新连接数据库...');
+  
+  try {
+    // 停止健康检查
+    stopHealthCheck();
+    
+    // 关闭旧连接池
+    if (db) {
+      try {
+        await db.end();
+        console.log('[重连] 旧连接池已关闭');
+      } catch (err) {
+        console.warn('[重连] 关闭旧连接池时出错:', err.message);
+      }
+    }
+    
+    // 等待一段时间后重连
+    await new Promise(resolve => setTimeout(resolve, RECONNECT_DELAY));
+    
+    // 重新初始化连接
+    await initDatabaseConnection();
+    
+    // 重置状态
+    connectionErrors = 0;
+    isReconnecting = false;
+    
+    // 重新启动健康检查
+    startHealthCheck();
+    
+    console.log('[重连] 数据库重连成功！');
+    return true;
+  } catch (error) {
+    isReconnecting = false;
+    console.error('[重连] 数据库重连失败:', error.message);
+    
+    // 继续尝试重连
+    setTimeout(() => {
+      console.log('[重连] 将在 10 秒后再次尝试重连...');
+      reconnectDatabase();
+    }, 10000);
+    
+    return false;
+  }
+}
+
+// 启动健康检查
+function startHealthCheck() {
+  if (healthCheckInterval) {
+    clearInterval(healthCheckInterval);
+  }
+  
+  console.log(`[健康检查] 启动数据库连接池健康检查，间隔: ${HEALTH_CHECK_INTERVAL / 1000}秒`);
+  
+  // 立即执行一次检查
+  checkPoolHealth();
+  
+  // 定时检查
+  healthCheckInterval = setInterval(async () => {
+    await checkPoolHealth();
+  }, HEALTH_CHECK_INTERVAL);
+}
+
+// 停止健康检查
+function stopHealthCheck() {
+  if (healthCheckInterval) {
+    clearInterval(healthCheckInterval);
+    healthCheckInterval = null;
+    console.log('[健康检查] 已停止');
   }
 }
 
@@ -222,6 +370,9 @@ async function initDatabase() {
     }
 
     console.log('数据库初始化完成');
+    
+    // 启动连接池健康检查
+    startHealthCheck();
   } catch (error) {
     console.error('数据库初始化失败:', error.message);
     throw error;
@@ -285,17 +436,22 @@ async function getDeviceById(id) {
   return null;
 }
 
-// 批量同步设备数据（高性能增量更新 - 使用哈希优化）
-async function syncDevices(remoteDevices) {
-  const now = Math.floor(Date.now() / 1000);
-  const remoteIds = new Set();
+// 批量同步设备数据（高性能批量插入/更新 - 使用事务和批量操作）
+const BATCH_SIZE = 500; // 每批处理500条数据
 
-  // MySQL 批量插入/更新
-  for (const device of remoteDevices) {
-    remoteIds.add(device.id);
-    
-    // 标准化设备数据
-    const normalizedDevice = {
+async function syncDevices(remoteDevices) {
+  if (!remoteDevices || remoteDevices.length === 0) {
+    return await getAllDevices();
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  const startTime = Date.now();
+  
+  console.log(`[syncDevices] 开始同步 ${remoteDevices.length} 台设备...`);
+
+  // 标准化所有设备数据
+  const normalizedDevices = remoteDevices.map(device => {
+    const normalized = {
       id: device.id || device.device_id || device.deviceId,
       name: device.name || device.device_name || `设备-${device.id || device.device_id || device.deviceId}`,
       ip_address: device.ip_address || device.ipAddress || device.ip || '',
@@ -306,47 +462,95 @@ async function syncDevices(remoteDevices) {
       memory_usage: device.memory_usage || device.memoryUsage || device.memory || 0,
       storage_usage: device.storage_usage || device.storageUsage || device.storage || 0,
       temperature: device.temperature || device.temp || 0,
-      last_heartbeat: now
+      last_heartbeat: now,
+      sync_hash: calculateDeviceHash({
+        status: device.status || (device.online ? 'online' : 'offline'),
+        online: device.online ? 1 : 0,
+        cpu_usage: device.cpu_usage || device.cpuUsage || device.cpu || 0,
+        memory_usage: device.memory_usage || device.memoryUsage || device.memory || 0,
+        storage_usage: device.storage_usage || device.storageUsage || device.storage || 0,
+        temperature: device.temperature || device.temp || 0
+      }),
+      updated_at: now
     };
+    return normalized;
+  });
 
-    // 计算数据哈希（使用与数据库存储一致的数据类型）
-    const hash = calculateDeviceHash({
-      ...normalizedDevice,
-      online: normalizedDevice.online // 使用数字类型的 online 字段
-    });
+  // 分批处理
+  const batches = [];
+  for (let i = 0; i < normalizedDevices.length; i += BATCH_SIZE) {
+    batches.push(normalizedDevices.slice(i, i + BATCH_SIZE));
+  }
 
-    // 使用 INSERT INTO ... ON DUPLICATE KEY UPDATE
-    await query(`
-      INSERT INTO devices (id, name, ip_address, mac_address, status, online, cpu_usage, memory_usage, storage_usage, temperature, last_heartbeat, sync_hash, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON DUPLICATE KEY UPDATE
-        name = VALUES(name),
-        ip_address = VALUES(ip_address),
-        mac_address = VALUES(mac_address),
-        status = VALUES(status),
-        online = VALUES(online),
-        cpu_usage = VALUES(cpu_usage),
-        memory_usage = VALUES(memory_usage),
-        storage_usage = VALUES(storage_usage),
-        temperature = VALUES(temperature),
-        last_heartbeat = VALUES(last_heartbeat),
-        sync_hash = VALUES(sync_hash),
-        updated_at = VALUES(updated_at)
-    `, [
-      normalizedDevice.id,
-      normalizedDevice.name,
-      normalizedDevice.ip_address,
-      normalizedDevice.mac_address,
-      normalizedDevice.status,
-      normalizedDevice.online,
-      normalizedDevice.cpu_usage,
-      normalizedDevice.memory_usage,
-      normalizedDevice.storage_usage,
-      normalizedDevice.temperature,
-      now,
-      hash,
-      now
-    ]);
+  console.log(`[syncDevices] 分为 ${batches.length} 批处理，每批最多 ${BATCH_SIZE} 条`);
+
+  // 获取连接并开始事务
+  const connection = await db.getConnection();
+  
+  try {
+    await connection.beginTransaction();
+    
+    let processedCount = 0;
+    
+    for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+      const batch = batches[batchIndex];
+      
+      // 构建批量插入SQL
+      const placeholders = batch.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(',');
+      const values = batch.flatMap(d => [
+        d.id,
+        d.name,
+        d.ip_address,
+        d.mac_address,
+        d.status,
+        d.online,
+        d.cpu_usage,
+        d.memory_usage,
+        d.storage_usage,
+        d.temperature,
+        d.last_heartbeat,
+        d.sync_hash,
+        d.updated_at
+      ]);
+      
+      const sql = `
+        INSERT INTO devices (id, name, ip_address, mac_address, status, online, cpu_usage, memory_usage, storage_usage, temperature, last_heartbeat, sync_hash, updated_at)
+        VALUES ${placeholders}
+        ON DUPLICATE KEY UPDATE
+          name = VALUES(name),
+          ip_address = VALUES(ip_address),
+          mac_address = VALUES(mac_address),
+          status = VALUES(status),
+          online = VALUES(online),
+          cpu_usage = VALUES(cpu_usage),
+          memory_usage = VALUES(memory_usage),
+          storage_usage = VALUES(storage_usage),
+          temperature = VALUES(temperature),
+          last_heartbeat = VALUES(last_heartbeat),
+          sync_hash = VALUES(sync_hash),
+          updated_at = VALUES(updated_at)
+      `;
+      
+      await connection.execute(sql, values);
+      processedCount += batch.length;
+      
+      // 每处理完一批输出进度
+      if (batches.length > 1) {
+        console.log(`[syncDevices] 批次 ${batchIndex + 1}/${batches.length} 完成，已处理 ${processedCount}/${normalizedDevices.length} 台设备`);
+      }
+    }
+    
+    await connection.commit();
+    
+    const duration = Date.now() - startTime;
+    console.log(`[syncDevices] 同步完成！共处理 ${normalizedDevices.length} 台设备，耗时 ${duration}ms`);
+    
+  } catch (error) {
+    await connection.rollback();
+    console.error('[syncDevices] 同步失败，已回滚:', error.message);
+    throw error;
+  } finally {
+    connection.release();
   }
 
   // 清除设备相关缓存
@@ -1016,5 +1220,11 @@ module.exports = {
   getDeviceGroupMappings,
   getAllDevicesWithGroups,
   getDevicesByStatus,
-  getGroupDeviceStats
+  getGroupDeviceStats,
+  // 健康检查
+  checkPoolHealth,
+  getPoolStatus,
+  startHealthCheck,
+  stopHealthCheck,
+  reconnectDatabase
 };

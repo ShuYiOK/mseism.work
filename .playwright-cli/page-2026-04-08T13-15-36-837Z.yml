@@ -1,0 +1,25 @@
+- generic [ref=e13]:
+  - img "1panel" [ref=e56]
+  - generic [ref=e18]:
+    - generic [ref=e19]:
+      - generic [ref=e20]: 登录
+      - button "中文(简体)" [ref=e23] [cursor=pointer]:
+        - text: 中文(简体)
+        - img [ref=e25]
+    - generic [ref=e28]:
+      - textbox "用户名" [ref=e45]: lsby1984
+      - generic [ref=e37]:
+        - textbox "密码" [ref=e46]: Steven84
+        - img [ref=e59] [cursor=pointer]
+      - generic [ref=e39]:
+        - textbox "验证码" [ref=e67]
+        - generic [ref=e69]: 您输入的用户名或密码不正确，请重新输入！
+      - button "登录" [active] [ref=e47] [cursor=pointer]:
+        - generic [ref=e44]: 登录
+      - generic [ref=e50] [cursor=pointer]:
+        - generic [ref=e51]:
+          - checkbox "同意 《飞致云社区软件许可协议》" [checked]
+        - generic [ref=e54]:
+          - text: 同意
+          - link "《飞致云社区软件许可协议》" [ref=e55]:
+            - /url: https://www.fit2cloud.com/legal/licenses.html

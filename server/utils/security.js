@@ -1,9 +1,9 @@
 /**
  * 安全工具模块
- * 提供密码哈希、CSRF保护等安全功能
+ * 提供密码哈希、输入验证等安全功能
  */
 
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 
 class SecurityUtils {
@@ -33,55 +33,6 @@ class SecurityUtils {
    */
   static generateCsrfToken() {
     return crypto.randomBytes(32).toString('hex');
-  }
-
-  /**
-   * 验证CSRF token
-   * @param {string} token CSRF token
-   * @param {string} storedToken 存储的CSRF token
-   * @returns {boolean} 是否有效
-   */
-  static verifyCsrfToken(token, storedToken) {
-    return token === storedToken;
-  }
-
-  /**
-   * 生成随机字符串
-   * @param {number} length 长度
-   * @returns {string} 随机字符串
-   */
-  static generateRandomString(length = 32) {
-    return crypto.randomBytes(length).toString('hex');
-  }
-
-  /**
-   * 加密数据
-   * @param {string} data 数据
-   * @param {string} secret 密钥
-   * @returns {string} 加密后的数据
-   */
-  static encrypt(data, secret) {
-    const iv = crypto.randomBytes(16);
-    const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(secret), iv);
-    let encrypted = cipher.update(data);
-    encrypted = Buffer.concat([encrypted, cipher.final()]);
-    return iv.toString('hex') + ':' + encrypted.toString('hex');
-  }
-
-  /**
-   * 解密数据
-   * @param {string} encryptedData 加密后的数据
-   * @param {string} secret 密钥
-   * @returns {string} 解密后的数据
-   */
-  static decrypt(encryptedData, secret) {
-    const textParts = encryptedData.split(':');
-    const iv = Buffer.from(textParts.shift(), 'hex');
-    const encryptedText = Buffer.from(textParts.join(':'), 'hex');
-    const decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(secret), iv);
-    let decrypted = decipher.update(encryptedText);
-    decrypted = Buffer.concat([decrypted, decipher.final()]);
-    return decrypted.toString();
   }
 
   /**

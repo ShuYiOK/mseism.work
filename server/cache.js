@@ -1,21 +1,28 @@
 /**
- * 缓存模块
- * 提供内存缓存功能，用于优化数据库查询性能
+ * 缓存模块 - 优化版
+ * 本地内存缓存，用于优化数据库查询性能
+ * 使用分组存储优化缓存清理效率
+ * 注意：单实例部署使用。如需多实例共享缓存，需配置 Redis
  */
 
-// 缓存存储
 const cacheStore = new Map();
+const cacheExpiry = new Map();
 
-// 缓存配置
-const CONFIG = {
-  // 缓存过期时间（毫秒）
-  DEVICES_TTL: 60 * 1000, // 1分钟
-  GROUPS_TTL: 300 * 1000, // 5分钟
-  STATS_TTL: 60 * 1000, // 1分钟
-  MAPPINGS_TTL: 300 * 1000, // 5分钟
+// 缓存分组 - 按类型存储键名，提高清理效率
+const cacheGroups = {
+  devices: new Set(),  // 设备相关缓存
+  groups: new Set(),   // 分组相关缓存
+  stats: new Set(),    // 统计相关缓存
+  mappings: new Set()  // 映射相关缓存
 };
 
-// 缓存键名
+const CONFIG = {
+  DEVICES_TTL: 60 * 1000,
+  GROUPS_TTL: 300 * 1000,
+  STATS_TTL: 60 * 1000,
+  MAPPINGS_TTL: 300 * 1000,
+};
+
 const KEYS = {
   ALL_DEVICES: 'devices:all',
   DEVICE_BY_ID: (id) => `device:${id}`,
@@ -30,72 +37,136 @@ const KEYS = {
   OFFLINE_DEVICES: 'devices:offline',
 };
 
-/**
- * 设置缓存
- * @param {string} key 缓存键
- * @param {*} value 缓存值
- * @param {number} ttl 过期时间（毫秒）
- */
-function set(key, value, ttl = CONFIG.DEVICES_TTL) {
-  const item = {
-    value,
-    expiry: Date.now() + ttl,
-  };
-  cacheStore.set(key, item);
+// 根据键名判断所属分组
+function getKeyGroup(key) {
+  if (key.includes('device') || key.includes('devices:')) {
+    return 'devices';
+  }
+  if (key.includes('group') || key.includes('groups:')) {
+    return 'groups';
+  }
+  if (key.includes('stats')) {
+    return 'stats';
+  }
+  if (key.includes('mappings')) {
+    return 'mappings';
+  }
+  return null;
 }
 
-/**
- * 获取缓存
- * @param {string} key 缓存键
- * @returns {*} 缓存值，过期返回null
- */
+function set(key, value, ttl = CONFIG.DEVICES_TTL) {
+  cacheStore.set(key, value);
+  cacheExpiry.set(key, Date.now() + ttl);
+  
+  // 添加到对应分组
+  const group = getKeyGroup(key);
+  if (group && cacheGroups[group]) {
+    cacheGroups[group].add(key);
+  }
+}
+
 function get(key) {
   const item = cacheStore.get(key);
   if (!item) {
     return null;
   }
-  if (Date.now() > item.expiry) {
+  const expiry = cacheExpiry.get(key);
+  if (expiry && Date.now() > expiry) {
+    // 过期时同时从分组中移除
+    const group = getKeyGroup(key);
+    if (group && cacheGroups[group]) {
+      cacheGroups[group].delete(key);
+    }
     cacheStore.delete(key);
+    cacheExpiry.delete(key);
     return null;
   }
-  return item.value;
+  return item;
 }
 
-/**
- * 删除缓存
- * @param {string} key 缓存键
- */
 function del(key) {
+  // 从分组中移除
+  const group = getKeyGroup(key);
+  if (group && cacheGroups[group]) {
+    cacheGroups[group].delete(key);
+  }
   cacheStore.delete(key);
+  cacheExpiry.delete(key);
 }
 
-/**
- * 清除所有缓存
- */
 function clear() {
   cacheStore.clear();
+  cacheExpiry.clear();
+  // 清空所有分组
+  Object.values(cacheGroups).forEach(group => group.clear());
 }
 
-/**
- * 清除设备相关缓存
- */
+// 优化版：直接使用分组清理设备缓存
 function clearDeviceCache() {
-  for (const key of cacheStore.keys()) {
-    if (key.startsWith('device:') || key.startsWith('devices:')) {
-      cacheStore.delete(key);
-    }
-  }
+  const keysToDelete = [...cacheGroups.devices];
+  keysToDelete.forEach(key => {
+    cacheStore.delete(key);
+    cacheExpiry.delete(key);
+  });
+  cacheGroups.devices.clear();
 }
 
-/**
- * 清除分组相关缓存
- */
+// 优化版：直接使用分组清理分组缓存
 function clearGroupCache() {
-  for (const key of cacheStore.keys()) {
-    if (key.startsWith('group:') || key.startsWith('groups:')) {
-      cacheStore.delete(key);
+  const keysToDelete = [...cacheGroups.groups];
+  keysToDelete.forEach(key => {
+    cacheStore.delete(key);
+    cacheExpiry.delete(key);
+  });
+  cacheGroups.groups.clear();
+}
+
+// 清理统计缓存
+function clearStatsCache() {
+  const keysToDelete = [...cacheGroups.stats];
+  keysToDelete.forEach(key => {
+    cacheStore.delete(key);
+    cacheExpiry.delete(key);
+  });
+  cacheGroups.stats.clear();
+}
+
+// 清理映射缓存
+function clearMappingsCache() {
+  const keysToDelete = [...cacheGroups.mappings];
+  keysToDelete.forEach(key => {
+    cacheStore.delete(key);
+    cacheExpiry.delete(key);
+  });
+  cacheGroups.mappings.clear();
+}
+
+// 获取缓存统计信息
+function getStats() {
+  return {
+    totalKeys: cacheStore.size,
+    groups: {
+      devices: cacheGroups.devices.size,
+      groups: cacheGroups.groups.size,
+      stats: cacheGroups.stats.size,
+      mappings: cacheGroups.mappings.size
+    }
+  };
+}
+
+// 清理过期缓存（可定时调用）
+function cleanupExpired() {
+  const now = Date.now();
+  let cleaned = 0;
+  
+  for (const [key, expiry] of cacheExpiry.entries()) {
+    if (now > expiry) {
+      del(key);
+      cleaned++;
     }
   }
+  
+  return cleaned;
 }
 
 module.exports = {
@@ -105,6 +176,10 @@ module.exports = {
   clear,
   clearDeviceCache,
   clearGroupCache,
+  clearStatsCache,
+  clearMappingsCache,
+  getStats,
+  cleanupExpired,
   KEYS,
   CONFIG,
 };

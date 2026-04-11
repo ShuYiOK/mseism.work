@@ -13,6 +13,7 @@ const path = require('path');
 
 const config = require('./config');
 const db = require('./database');
+const auth = require('./auth');
 const performanceMonitor = require('./performance');
 const { systemStart, apiRequest, queryLogs, getLogStats } = require('./operationLog');
 
@@ -131,16 +132,18 @@ const io = new Server(server, {
   }
 });
 
+wsManager.io = io;
+console.log('[WS Manager] Socket.io 实例已设置');
 // 中间件
 app.use(express.json());
 app.use(configureCors());
 app.use(securityHeaders);
 app.use(generateCsrfToken);
 
-// 暂时禁用CSRF验证，用于测试
-// if (process.env.NODE_ENV !== 'test') {
-//   app.use(validateCsrfToken);
-// }
+// CSRF 验证（生产环境启用）
+if (process.env.NODE_ENV === 'production') {
+  app.use(validateCsrfToken);
+}
 
 app.use(validateInput);
 
@@ -657,6 +660,9 @@ async function startServer() {
     
     // 初始化数据库
     await db.initDatabase();
+    
+    // 初始化用户数据库
+    await auth.initUserDatabase();
     
     // 启动定时任务
     startScheduledTasks();

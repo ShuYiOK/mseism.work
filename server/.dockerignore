@@ -1,0 +1,11 @@
+# 排除测试和文档
+*.md
+*.test.js
+*.spec.js
+jest.config.js
+coverage
+node_modules
+
+# 保留必要的构建文件
+!package.json
+!package-lock.json

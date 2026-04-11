@@ -1,0 +1,109 @@
+version: '3.8'
+
+# MseisM 生产环境 Docker Compose
+# 由 scripts/deploy.sh 调用
+# 环境变量从 .env 文件加载
+
+services:
+  # ─── MySQL 数据库 ──────────────────────────
+  mysql:
+    image: mysql:8.0
+    container_name: mseism-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      TZ: Asia/Shanghai
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./fix-database.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    networks:
+      - mseism-net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD:defaultpass}"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
+    # 不暴露端口到外部，仅内部访问
+    expose:
+      - "3306"
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-authentication-plugin=mysql_native_password
+      - --innodb-buffer-pool-size=256M
+
+  # ─── Node.js 后端 ──────────────────────────
+  backend:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: mseism-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      JWT_SECRET: ${JWT_SECRET}
+      DEVICE_API_URL: ${DEVICE_API_URL}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost}
+      TZ: Asia/Shanghai
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - mseism-net
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    # 不直接暴露，通过 Nginx 反代
+    expose:
+      - "3001"
+
+  # ─── Vue3 前端（Nginx）─────────────────────
+  frontend:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: mseism-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+    networks:
+      - mseism-net
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  # ─── Nginx 反向代理（可选，如1Panel已有则跳过）
+  # nginx:
+  #   image: nginx:1.25-alpine
+  #   container_name: mseism-nginx
+  #   ...
+
+networks:
+  mseism-net:
+    driver: bridge
+    name: mseism-network
+
+volumes:
+  mysql_data:
+    driver: local
+    name: mseism_mysql_data
