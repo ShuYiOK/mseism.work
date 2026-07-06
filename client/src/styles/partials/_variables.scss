@@ -1,0 +1,129 @@
+// ========================================
+// CSS/SCSS Variables
+// ========================================
+
+// Color Palette
+$primary-color: #667eea !default;
+$primary-light: #8a9bf1 !default;
+$primary-dark: #4a5bc7 !default;
+
+$success-color: #4caf50 !default;
+$success-light: #66bb6a !default;
+$success-dark: #388e3c !default;
+
+$danger-color: #f44336 !default;
+$danger-light: #ef5350 !default;
+$danger-dark: #d32f2f !default;
+
+$warning-color: #ff9800 !default;
+$warning-light: #ffb74d !default;
+$warning-dark: #f57c00 !default;
+
+$info-color: #2196f3 !default;
+$info-light: #42a5f5 !default;
+$info-dark: #1976d2 !default;
+
+// Device Status Colors
+$device-online: #4caf50 !default;
+$device-offline: #f44336 !default;
+$device-warning: #ff9800 !default;
+$device-idle: #9e9e9e !default;
+$device-maintenance: #9c27b0 !default;
+
+// Background & Text
+$bg-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !default;
+$bg-secondary: #f5f7fa !default;
+$card-bg: #ffffff !default;
+$text-primary: #333333 !default;
+$text-secondary: #666666 !default;
+$text-light: #999999 !default;
+$border-color: #e0e0e0 !default;
+$border-light: #f0f0f0 !default;
+$border-dark: #d0d0d0 !default;
+
+// Shadows
+$shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.1) !default;
+$shadow-md: 0 4px 8px rgba(0, 0, 0, 0.12) !default;
+$shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.15) !default;
+
+// Accessible Colors
+$accessible-primary: #5a6fd8 !default;
+$accessible-success: #388e3c !default;
+$accessible-danger: #d32f2f !default;
+$accessible-warning: #f57c00 !default;
+$accessible-info: #1976d2 !default;
+
+// ========================================
+// Breakpoint Variables
+// ========================================
+$breakpoint-xs: 480px !default;
+$breakpoint-sm: 576px !default;
+$breakpoint-md: 768px !default;
+$breakpoint-lg: 992px !default;
+$breakpoint-xl: 1200px !default;
+$breakpoint-xxl: 1400px !default;
+
+// Breakpoint Map for easy access
+$breakpoints: (
+  'xs': $breakpoint-xs,
+  'sm': $breakpoint-sm,
+  'md': $breakpoint-md,
+  'lg': $breakpoint-lg,
+  'xl': $breakpoint-xl,
+  'xxl': $breakpoint-xxl
+) !default;
+
+// ========================================
+// Touch & Interaction Variables
+// ========================================
+$touch-target-min: 44px !default;
+$touch-target-height: 44px !default;
+$touch-target-padding: 8px !default;
+
+$touch-scale-down: 0.95 !default;
+$touch-scale-active: 0.92 !default;
+$touch-feedback-duration: 300ms !default;
+$touch-color-transition: 300ms ease !default;
+
+// ========================================
+// Scroll & Animation Variables
+// ========================================
+$scroll-behavior: smooth !default;
+$scroll-deceleration: 0.9 !default;
+$scroll-bounce: cubic-bezier(0.25, 0.46, 0.45, 0.94) !default;
+
+$transition-fast: 200ms !default;
+$transition-normal: 300ms !default;
+$transition-slow: 500ms !default;
+
+// ========================================
+// Layout Variables
+// ========================================
+$bottom-nav-height: 56px !default;
+$bottom-nav-item-count: 5 !default;
+$input-height: 56px !default;
+$input-spacing: 16px !default;
+
+// ========================================
+// Typography Variables
+// ========================================
+$font-size-base: 16px !default;
+$font-size-lg: 18px !default;
+$line-height-body: 1.6 !default;
+$line-height-heading: 1.3 !default;
+
+// Font Family
+$font-family-base: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !default;
+
+// ========================================
+// Z-Index Scale
+// ========================================
+$z-index-base: 1 !default;
+$z-index-dropdown: 100 !default;
+$z-index-sticky: 200 !default;
+$z-index-fixed: 300 !default;
+$z-index-modal-backdrop: 400 !default;
+$z-index-modal: 500 !default;
+$z-index-popover: 600 !default;
+$z-index-tooltip: 700 !default;
+$z-index-toast: 800 !default;

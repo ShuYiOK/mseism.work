@@ -1,16 +1,31 @@
-// Jest 测试环境设置
+/**
+ * Jest 测试设置文件
+ */
 
 // 设置测试环境变量
 process.env.NODE_ENV = 'test';
-process.env.JWT_SECRET = 'test-secret-key-for-testing-only';
-process.env.JWT_ACCESS_TOKEN_EXPIRES_IN = '1h';
-process.env.JWT_REFRESH_TOKEN_EXPIRES_IN = '7d';
+process.env.LOG_LEVEL = 'error';
 
-// 全局测试钩子
-beforeAll(async () => {
-  console.log('测试环境初始化完成');
+// 全局超时设置
+jest.setTimeout(10000);
+
+// 全局清理函数
+afterAll(async () => {
+  // 清理测试数据
+  await new Promise(resolve => setTimeout(resolve, 100));
 });
 
-afterAll(async () => {
-  console.log('测试环境清理完成');
+// 模拟 console.log 在测试时减少输出
+const originalConsole = { ...console };
+
+beforeAll(() => {
+  console.log = jest.fn();
+  console.info = jest.fn();
+  console.warn = jest.fn();
+});
+
+afterAll(() => {
+  console.log = originalConsole.log;
+  console.info = originalConsole.info;
+  console.warn = originalConsole.warn;
 });

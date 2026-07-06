@@ -1,0 +1,248 @@
+// ========================================
+// Base Styles & Reset
+// ========================================
+
+// CSS Reset
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+// Base Document Styles
+html {
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  font-family: $font-family-base;
+  background: $bg-primary;
+  min-height: 100vh;
+  color: $text-primary;
+  line-height: $line-height-body;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+// Root Container
+#app {
+  min-height: 100vh;
+}
+
+// ========================================
+// Touch Interaction Optimization
+// ========================================
+
+* {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -khtml-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+// Interactive Elements
+.touch-interactive {
+  min-height: $touch-target-min;
+  min-width: $touch-target-min;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  @include transition((transform, background-color, box-shadow), $touch-feedback-duration);
+  @include gpu-accelerate;
+  @include will-change(transform, background-color);
+
+  &:active {
+    transform: scale($touch-scale-active) translateZ(0);
+  }
+
+  &:not(:active):hover {
+    transform: scale($touch-scale-down) translateZ(0);
+  }
+}
+
+// Touch Target
+.touch-target {
+  @include touch-target;
+}
+
+// ========================================
+// Scrollbar Styling
+// ========================================
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba($primary-color, 0.5);
+  border-radius: 4px;
+
+  &:hover {
+    background: rgba($primary-color, 0.7);
+  }
+}
+
+// ========================================
+// Scroll Container Styles
+// ========================================
+
+.scroll-container {
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  -moz-overflow-scrolling: touch;
+  overflow-scrolling: touch;
+  @include gpu-accelerate;
+  @include will-change(scroll-position);
+}
+
+.scroll-container-smooth {
+  scroll-behavior: $scroll-behavior;
+  -webkit-scroll-behavior: $scroll-behavior;
+}
+
+.scroll-bounce {
+  overscroll-behavior: contain;
+  overscroll-behavior-y: contain;
+}
+
+.scroll-bounce-x {
+  overscroll-behavior-x: contain;
+}
+
+// ========================================
+// Typography Base Styles
+// ========================================
+
+h1, h2, h3, h4, h5, h6 {
+  line-height: $line-height-heading;
+  font-weight: 600;
+  margin-bottom: 0.5em;
+}
+
+h1 {
+  font-size: 2rem;
+}
+
+h2 {
+  font-size: 1.75rem;
+}
+
+h3 {
+  font-size: 1.5rem;
+}
+
+h4 {
+  font-size: 1.25rem;
+}
+
+h5 {
+  font-size: 1.1rem;
+}
+
+h6 {
+  font-size: 1rem;
+}
+
+p {
+  margin-bottom: 1em;
+  line-height: $line-height-body;
+}
+
+a {
+  color: $primary-color;
+  text-decoration: none;
+  @include transition(color, $transition-fast);
+
+  &:hover {
+    color: $primary-dark;
+  }
+}
+
+// ========================================
+// List Styles
+// ========================================
+
+ul, ol {
+  padding-left: 1.5em;
+  margin-bottom: 1em;
+}
+
+li {
+  margin-bottom: 0.5em;
+  line-height: $line-height-body;
+}
+
+// ========================================
+// Form Elements Base
+// ========================================
+
+input,
+select,
+textarea {
+  @include input-base;
+}
+
+label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+  font-size: $font-size-base;
+  color: $text-primary;
+}
+
+.form-group {
+  margin-bottom: $input-spacing;
+}
+
+// ========================================
+// Button Styles
+// ========================================
+
+button {
+  @include button-base;
+}
+
+// ========================================
+// Image Styles
+// ========================================
+
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+// ========================================
+// Utility Classes
+// ========================================
+
+.sr-only {
+  @include sr-only;
+}
+
+.flex-center {
+  @include flex-center;
+}
+
+.flex-between {
+  @include flex-between;
+}
+
+.flex-column {
+  @include flex-column;
+}

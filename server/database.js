@@ -247,6 +247,19 @@ function stopHealthCheck() {
   }
 }
 
+// 关闭数据库连接池
+async function close() {
+  stopHealthCheck();
+  if (db) {
+    try {
+      await db.end();
+      console.log('[数据库] 连接池已关闭');
+    } catch (error) {
+      console.error('[数据库] 关闭连接池失败:', error.message);
+    }
+  }
+}
+
 // 计算设备数据哈希
 function calculateDeviceHash(device) {
   // 确保 online 字段使用数字类型进行哈希计算
@@ -311,6 +324,12 @@ async function initDatabase() {
         memory_usage DOUBLE DEFAULT 0,
         storage_usage DOUBLE DEFAULT 0,
         temperature DOUBLE DEFAULT 0,
+        volt DOUBLE DEFAULT 0,
+        delay DOUBLE DEFAULT 0,
+        delay2 DOUBLE DEFAULT 0,
+        coodX DOUBLE DEFAULT 0,
+        coodY DOUBLE DEFAULT 0,
+        coodZ DOUBLE DEFAULT 0,
         last_heartbeat INT DEFAULT 0,
         sync_hash VARCHAR(32),
         created_at INT DEFAULT 0,
@@ -360,14 +379,6 @@ async function initDatabase() {
 
     // 执行数据库迁移（添加 sync_hash 字段）
     await migrateDatabase();
-
-    // 迁移完成后创建哈希索引
-    try {
-      await query(`CREATE INDEX idx_devices_hash ON devices(sync_hash)`);
-    } catch (error) {
-      // 忽略索引创建失败（列可能不存在）
-      console.warn('[警告] 无法创建 sync_hash 索引:', error.message);
-    }
 
     console.log('数据库初始化完成');
     
@@ -451,24 +462,44 @@ async function syncDevices(remoteDevices) {
 
   // 标准化所有设备数据
   const normalizedDevices = remoteDevices.map(device => {
+    // 解析 storage 字段，确保是有效数字（0-100 之间）
+    let storageVal = 0;
+    try {
+      const storageRaw = device.storage_usage || device.storageUsage || device.storage;
+      if (storageRaw !== undefined && storageRaw !== null) {
+        const parsed = parseInt(storageRaw);
+        if (!isNaN(parsed) && parsed >= 0 && parsed <= 100) {
+          storageVal = parsed;
+        }
+      }
+    } catch (e) {
+      // 解析失败，使用默认值 0
+    }
+
     const normalized = {
-      id: device.id || device.device_id || device.deviceId,
-      name: device.name || device.device_name || `设备-${device.id || device.device_id || device.deviceId}`,
+      id: (device.id && device.id !== '0') ? device.id : (device.device || device.device_id || device.deviceId),
+      name: device.name || device.device_name || `设备-${(device.id && device.id !== '0') ? device.id : (device.device || device.device_id || device.deviceId)}`,
       ip_address: device.ip_address || device.ipAddress || device.ip || '',
       mac_address: device.mac_address || device.macAddress || device.mac || '',
       status: device.status || (device.online ? 'online' : 'offline'),
       online: device.online ? 1 : 0,
       cpu_usage: device.cpu_usage || device.cpuUsage || device.cpu || 0,
       memory_usage: device.memory_usage || device.memoryUsage || device.memory || 0,
-      storage_usage: device.storage_usage || device.storageUsage || device.storage || 0,
+      storage_usage: storageVal,
       temperature: device.temperature || device.temp || 0,
+      volt: device.volt || device.voltage || 0,
+      delay: device.delay || device.latency || 0,
+      delay2: device.delay2 || device.latency2 || 0,
+      coodX: device.coodX || device.coordinateX || 0,
+      coodY: device.coodY || device.coordinateY || 0,
+      coodZ: device.coodZ || device.coordinateZ || 0,
       last_heartbeat: now,
       sync_hash: calculateDeviceHash({
         status: device.status || (device.online ? 'online' : 'offline'),
         online: device.online ? 1 : 0,
         cpu_usage: device.cpu_usage || device.cpuUsage || device.cpu || 0,
         memory_usage: device.memory_usage || device.memoryUsage || device.memory || 0,
-        storage_usage: device.storage_usage || device.storageUsage || device.storage || 0,
+        storage_usage: storageVal,
         temperature: device.temperature || device.temp || 0
       }),
       updated_at: now
@@ -491,12 +522,12 @@ async function syncDevices(remoteDevices) {
     await connection.beginTransaction();
     
     let processedCount = 0;
-    
+
     for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
       const batch = batches[batchIndex];
-      
-      // 构建批量插入SQL
-      const placeholders = batch.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(',');
+
+      // 构建批量插入SQL (19个字段)
+      const placeholders = batch.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(',');
       const values = batch.flatMap(d => [
         d.id,
         d.name,
@@ -508,13 +539,19 @@ async function syncDevices(remoteDevices) {
         d.memory_usage,
         d.storage_usage,
         d.temperature,
+        d.volt,
+        d.delay,
+        d.delay2,
+        d.coodX,
+        d.coodY,
+        d.coodZ,
         d.last_heartbeat,
         d.sync_hash,
         d.updated_at
       ]);
-      
+
       const sql = `
-        INSERT INTO devices (id, name, ip_address, mac_address, status, online, cpu_usage, memory_usage, storage_usage, temperature, last_heartbeat, sync_hash, updated_at)
+        INSERT INTO devices (id, name, ip_address, mac_address, status, online, cpu_usage, memory_usage, storage_usage, temperature, volt, delay, delay2, coodX, coodY, coodZ, last_heartbeat, sync_hash, updated_at)
         VALUES ${placeholders}
         ON DUPLICATE KEY UPDATE
           name = VALUES(name),
@@ -526,6 +563,12 @@ async function syncDevices(remoteDevices) {
           memory_usage = VALUES(memory_usage),
           storage_usage = VALUES(storage_usage),
           temperature = VALUES(temperature),
+          volt = VALUES(volt),
+          delay = VALUES(delay),
+          delay2 = VALUES(delay2),
+          coodX = VALUES(coodX),
+          coodY = VALUES(coodY),
+          coodZ = VALUES(coodZ),
           last_heartbeat = VALUES(last_heartbeat),
           sync_hash = VALUES(sync_hash),
           updated_at = VALUES(updated_at)
@@ -748,14 +791,13 @@ async function deleteGroup(id) {
   return result;
 }
 
-// 将设备添加到分组
+// 将设备添加到分组（含唯一性校验：每台设备只能归属一个自定义分组）
 async function addDeviceToGroup(deviceId, groupId) {
   const id = uuidv4();
   try {
     // 检查设备是否存在
     const deviceExists = await getDeviceById(deviceId);
     if (!deviceExists) {
-      // 如果设备不存在，创建一个临时设备
       await syncDevices([{
         id: deviceId,
         name: `测试设备-${deviceId}`,
@@ -775,6 +817,22 @@ async function addDeviceToGroup(deviceId, groupId) {
     if (!groupExists) {
       throw new Error('分组不存在');
     }
+
+    // 唯一性校验：检查设备是否已归属其他自定义分组
+    const existingGroups = await query(`
+      SELECT g.id, g.name, g.color
+      FROM device_group_mapping m
+      INNER JOIN device_groups g ON g.id = m.group_id
+      WHERE m.device_id = ? AND m.group_id != ?
+    `, [deviceId, groupId]);
+
+    if (existingGroups.length > 0) {
+      const existingGroup = existingGroups[0];
+      const err = new Error(`设备已归属于分组「${existingGroup.name}」，每台设备只能归属一个自定义分组`);
+      err.code = 'DEVICE_ALREADY_GROUPED';
+      err.existingGroup = { id: existingGroup.id, name: existingGroup.name, color: existingGroup.color };
+      throw err;
+    }
     
     await query(`
       INSERT INTO device_group_mapping (id, device_id, group_id)
@@ -782,7 +840,8 @@ async function addDeviceToGroup(deviceId, groupId) {
     `, [id, deviceId, groupId]);
     console.log(`[DB] 添加设备到分组：${deviceId} -> ${groupId}, 结果：成功`);
     
-    // 清除相关缓存
+    // 清除相关缓存（包括设备列表缓存，确保 getAvailableDevicesForGroup 获取最新数据）
+    cache.clearDeviceCache();
     cache.clearGroupCache();
     cache.del(cache.KEYS.DEVICES_WITH_GROUPS);
     cache.del(cache.KEYS.GROUPS_WITH_DEVICES);
@@ -806,7 +865,8 @@ async function removeDeviceFromGroup(deviceId, groupId) {
     WHERE device_id = ? AND group_id = ?
   `, [deviceId, groupId]);
   
-  // 清除相关缓存
+  // 清除相关缓存（包括设备列表缓存，确保 getAvailableDevicesForGroup 获取最新数据）
+  cache.clearDeviceCache();
   cache.clearGroupCache();
   cache.del(cache.KEYS.DEVICES_WITH_GROUPS);
   cache.del(cache.KEYS.GROUPS_WITH_DEVICES);
@@ -910,7 +970,13 @@ async function getAllGroupsWithDevices() {
       d.cpu_usage,
       d.memory_usage,
       d.storage_usage,
-      d.temperature
+      d.temperature,
+      d.volt,
+      d.delay,
+      d.delay2,
+      d.coodX,
+      d.coodY,
+      d.coodZ
     FROM device_groups g
     LEFT JOIN device_group_mapping m ON g.id = m.group_id
     LEFT JOIN devices d ON m.device_id = d.id
@@ -943,9 +1009,15 @@ async function getAllGroupsWithDevices() {
           status: row.device_status,
           online: row.online === 1,
           cpu_usage: row.cpu_usage,
-        memory_usage: row.memory_usage,
-        storage_usage: row.storage_usage,
-        temperature: row.temperature
+          memory_usage: row.memory_usage,
+          storage_usage: row.storage_usage,
+          temperature: row.temperature,
+          volt: row.volt,
+          delay: row.delay,
+          delay2: row.delay2,
+          coodX: row.coodX,
+          coodY: row.coodY,
+          coodZ: row.coodZ
       });
     }
   });
@@ -1194,6 +1266,9 @@ async function getGroupDeviceStats() {
 
 module.exports = {
   initDatabase,
+  // 共享数据库连接池（供其他模块使用）
+  get db() { return db; },
+  get query() { return query; },
   // 设备操作
   getAllDevices,
   getDeviceById,
@@ -1226,5 +1301,7 @@ module.exports = {
   getPoolStatus,
   startHealthCheck,
   stopHealthCheck,
-  reconnectDatabase
+  reconnectDatabase,
+  // 连接池管理
+  close
 };

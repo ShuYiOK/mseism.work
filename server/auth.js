@@ -18,13 +18,15 @@ const CONFIG = {
   // Token算法
   JWT_ALGORITHM: config.JWT_ALGORITHM,
   // 密码加密轮次
-  BCRYPT_ROUNDS: config.BCRYPT_ROUNDS,
+  BCRYPT_ROUNDS: config.BCRYPT_ROUNDS || 10,
   // Token刷新阈值（7天内有效）
   REFRESH_THRESHOLD: 7 * 24 * 60 * 60 * 1000,
   // 最大登录尝试次数
   MAX_LOGIN_ATTEMPTS: config.MAX_LOGIN_ATTEMPTS,
   // 登录锁定时间（分钟）
-  LOGIN_LOCKOUT_TIME: config.LOGIN_LOCKOUT_TIME
+  LOGIN_LOCKOUT_TIME: config.LOGIN_LOCKOUT_TIME,
+  // 初始管理员密码
+  INITIAL_ADMIN_PASSWORD: config.INITIAL_ADMIN_PASSWORD || 'admin123'
 };
 
 // 用户角色
@@ -77,45 +79,25 @@ const RolePermissions = {
   ]
 };
 
-// 数据库连接
-let db;
-let query;
+// 数据库连接（使用共享连接池）
+const dbModule = require('./database');
 
 // 初始化数据库连接
 async function initDatabaseConnection() {
-  const mysql = require('mysql2/promise');
-  db = mysql.createPool({
-    host: config.database.host,
-    port: config.database.port,
-    user: config.database.user,
-    password: config.database.password,
-    database: config.database.database,
-    waitForConnections: true,
-    connectionLimit: 10,
-    queueLimit: 0
-  });
-  
-  // 测试连接
-  const connection = await db.getConnection();
-  connection.release();
-  
-  // MySQL 查询方法
-  query = async (sql, params = []) => {
-    const [rows] = await db.execute(sql, params);
-    return rows;
-  };
+  // 使用共享连接池，不创建新连接
+  await dbModule.initDatabase();
 }
 
 // 初始化用户表
 async function initUserDatabase() {
   // 确保数据库连接已初始化
-  if (!db) {
+  if (!dbModule.db) {
     await initDatabaseConnection();
   }
-  
+
   // 创建用户表
   try {
-    await query(`
+    await dbModule.query(`
       CREATE TABLE IF NOT EXISTS users (
         id VARCHAR(36) PRIMARY KEY,
         username VARCHAR(255) NOT NULL UNIQUE,
@@ -134,7 +116,7 @@ async function initUserDatabase() {
     `);
 
     // 创建刷新token表
-    await query(`
+    await dbModule.query(`
       CREATE TABLE IF NOT EXISTS refresh_tokens (
         id VARCHAR(36) PRIMARY KEY,
         user_id VARCHAR(36) NOT NULL,
@@ -149,7 +131,7 @@ async function initUserDatabase() {
     `);
 
     // 创建登录审计表
-    await query(`
+    await dbModule.query(`
       CREATE TABLE IF NOT EXISTS login_audit (
         id VARCHAR(36) PRIMARY KEY,
         user_id VARCHAR(36),
@@ -165,13 +147,13 @@ async function initUserDatabase() {
 
     // 创建索引
     try {
-      await query(`CREATE INDEX idx_users_username ON users(username)`);
-      await query(`CREATE INDEX idx_users_email ON users(email)`);
-      await query(`CREATE INDEX idx_refresh_tokens_user_id ON refresh_tokens(user_id)`);
-      await query(`CREATE INDEX idx_refresh_tokens_token ON refresh_tokens(token)`);
-      await query(`CREATE INDEX idx_refresh_tokens_expires ON refresh_tokens(expires_at)`);
-      await query(`CREATE INDEX idx_login_audit_user_id ON login_audit(user_id)`);
-      await query(`CREATE INDEX idx_login_audit_created ON login_audit(created_at)`);
+      await dbModule.query(`CREATE INDEX idx_users_username ON users(username)`);
+      await dbModule.query(`CREATE INDEX idx_users_email ON users(email)`);
+      await dbModule.query(`CREATE INDEX idx_refresh_tokens_user_id ON refresh_tokens(user_id)`);
+      await dbModule.query(`CREATE INDEX idx_refresh_tokens_token ON refresh_tokens(token)`);
+      await dbModule.query(`CREATE INDEX idx_refresh_tokens_expires ON refresh_tokens(expires_at)`);
+      await dbModule.query(`CREATE INDEX idx_login_audit_user_id ON login_audit(user_id)`);
+      await dbModule.query(`CREATE INDEX idx_login_audit_created ON login_audit(created_at)`);
     } catch (error) {
       // 忽略索引创建失败（索引可能已存在）
       console.warn('[警告] 无法创建索引:', error.message);
@@ -189,14 +171,14 @@ async function initUserDatabase() {
 
 // 创建默认管理员
 async function createDefaultAdmin() {
-  const users = await query('SELECT id FROM users WHERE username = ?', ['admin']);
+  const users = await dbModule.query('SELECT id FROM users WHERE username = ?', ['admin']);
   const adminExists = users.length > 0;
   
   if (!adminExists) {
     const adminId = crypto.randomUUID();
     const passwordHash = bcrypt.hashSync(CONFIG.INITIAL_ADMIN_PASSWORD, CONFIG.BCRYPT_ROUNDS);
     
-    await query(`
+    await dbModule.query(`
       INSERT INTO users (id, username, password_hash, email, role, permissions, is_active, email_verified)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `, [
@@ -212,7 +194,6 @@ async function createDefaultAdmin() {
     
     console.log('[认证系统] 默认管理员账户已创建');
     console.log('[认证系统] 用户名: admin');
-    console.log('[认证系统] 密码: ' + CONFIG.INITIAL_ADMIN_PASSWORD + ' (来自环境变量)');
     console.log('[认证系统] ⚠️  请立即修改默认密码！');
   }
 }
@@ -242,13 +223,13 @@ async function register(username, email, password, role = Role.USER) {
   }
 
   // 检查用户名是否已存在
-  const existingUsers = await query('SELECT id FROM users WHERE username = ?', [username]);
+  const existingUsers = await dbModule.query('SELECT id FROM users WHERE username = ?', [username]);
   if (existingUsers.length > 0) {
     throw new Error('用户名已存在');
   }
 
   // 检查邮箱是否已存在
-  const existingEmails = await query('SELECT id FROM users WHERE email = ?', [email]);
+  const existingEmails = await dbModule.query('SELECT id FROM users WHERE email = ?', [email]);
   if (existingEmails.length > 0) {
     throw new Error('邮箱已被使用');
   }
@@ -263,7 +244,7 @@ async function register(username, email, password, role = Role.USER) {
   const userId = crypto.randomUUID();
 
   // 创建用户
-  await query(`
+  await dbModule.query(`
     INSERT INTO users (id, username, password_hash, email, role, permissions, is_active, email_verified)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `, [
@@ -296,7 +277,7 @@ async function login(username, password, ip, userAgent) {
   }
 
   // 查找用户
-  const users = await query('SELECT * FROM users WHERE username = ?', [username]);
+  const users = await dbModule.query('SELECT * FROM users WHERE username = ?', [username]);
   const user = users[0];
   if (!user) {
     await logAudit(null, username, 'user_login', false, ip, userAgent, '用户不存在');
@@ -322,7 +303,7 @@ async function login(username, password, ip, userAgent) {
     const failedAttempts = (user.failed_login_attempts || 0) + 1;
     const lockedUntil = failedAttempts >= 5 ? Math.floor(Date.now() / 1000) + 1800 : null; // 5次失败锁定30分钟
 
-    await query(`
+    await dbModule.query(`
       UPDATE users SET
         failed_login_attempts = ?,
         locked_until = ?,
@@ -340,7 +321,7 @@ async function login(username, password, ip, userAgent) {
   }
 
   // 重置失败次数
-  await query(`
+  await dbModule.query(`
     UPDATE users SET
       failed_login_attempts = 0,
       locked_until = NULL,
@@ -404,7 +385,7 @@ async function generateRefreshToken(userId) {
   const token = crypto.randomUUID();
   const expiresAt = Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60); // 7天后
 
-  await query(`
+  await dbModule.query(`
     INSERT INTO refresh_tokens (id, user_id, token, expires_at)
     VALUES (?, ?, ?, ?)
   `, [crypto.randomUUID(), userId, token, expiresAt]);
@@ -430,7 +411,7 @@ function verifyAccessToken(token) {
 async function verifyRefreshToken(token) {
   try {
     // 检查token是否存在于数据库中
-    const refreshTokens = await query(`
+    const refreshTokens = await dbModule.query(`
       SELECT * FROM refresh_tokens 
       WHERE token = ? AND revoked = 0 AND expires_at > ?
     `, [token, Math.floor(Date.now() / 1000)]);
@@ -454,7 +435,7 @@ async function refreshAccessToken(refreshToken) {
   const tokenData = await verifyRefreshToken(refreshToken);
   
   // 获取用户信息
-  const users = await query('SELECT * FROM users WHERE id = ?', [tokenData.user_id]);
+  const users = await dbModule.query('SELECT * FROM users WHERE id = ?', [tokenData.user_id]);
   const user = users[0];
   if (!user) {
     throw new Error('用户不存在');
@@ -483,7 +464,7 @@ async function logout(refreshToken) {
   const tokenData = await verifyRefreshToken(refreshToken);
   
   // 撤销刷新token
-  await query(`
+  await dbModule.query(`
     UPDATE refresh_tokens SET
       revoked = 1,
       revoked_at = ?
@@ -491,7 +472,7 @@ async function logout(refreshToken) {
   `, [Math.floor(Date.now() / 1000), refreshToken]);
 
   // 记录登出日志
-  const users = await query('SELECT * FROM users WHERE id = ?', [tokenData.user_id]);
+  const users = await dbModule.query('SELECT * FROM users WHERE id = ?', [tokenData.user_id]);
   const user = users[0];
   if (user) {
     await logAudit(user.id, user.username, 'user_logout', true);
@@ -502,7 +483,7 @@ async function logout(refreshToken) {
 
 // 撤销所有token
 async function revokeAllTokens(userId) {
-  await query(`
+  await dbModule.query(`
     UPDATE refresh_tokens SET
       revoked = 1,
       revoked_at = ?
@@ -547,7 +528,7 @@ async function changePassword(userId, oldPassword, newPassword, ip, userAgent) {
   }
 
   // 获取用户信息
-  const users = await query('SELECT * FROM users WHERE id = ?', [userId]);
+  const users = await dbModule.query('SELECT * FROM users WHERE id = ?', [userId]);
   const user = users[0];
   if (!user) {
     throw new Error('用户不存在');
@@ -564,7 +545,7 @@ async function changePassword(userId, oldPassword, newPassword, ip, userAgent) {
   const newPasswordHash = bcrypt.hashSync(newPassword, CONFIG.BCRYPT_ROUNDS);
 
   // 更新密码
-  await query(`
+  await dbModule.query(`
     UPDATE users SET
       password_hash = ?,
       updated_at = ?
@@ -592,7 +573,7 @@ async function resetPassword(userId, newPassword) {
   }
 
   // 获取用户信息
-  const users = await query('SELECT * FROM users WHERE id = ?', [userId]);
+  const users = await dbModule.query('SELECT * FROM users WHERE id = ?', [userId]);
   const user = users[0];
   if (!user) {
     throw new Error('用户不存在');
@@ -602,7 +583,7 @@ async function resetPassword(userId, newPassword) {
   const newPasswordHash = bcrypt.hashSync(newPassword, CONFIG.BCRYPT_ROUNDS);
 
   // 更新密码
-  await query(`
+  await dbModule.query(`
     UPDATE users SET
       password_hash = ?,
       failed_login_attempts = 0,
@@ -622,7 +603,7 @@ async function resetPassword(userId, newPassword) {
 
 // 获取用户信息
 async function getUserById(userId) {
-  const users = await query('SELECT * FROM users WHERE id = ?', [userId]);
+  const users = await dbModule.query('SELECT * FROM users WHERE id = ?', [userId]);
   const user = users[0];
   if (!user) {
     return null;
@@ -638,7 +619,7 @@ async function getUserById(userId) {
 
 // 获取所有用户（仅管理员）
 async function getAllUsers() {
-  const users = await query('SELECT id, username, email, role, permissions, is_active, email_verified, last_login, created_at, updated_at FROM users');
+  const users = await dbModule.query('SELECT id, username, email, role, permissions, is_active, email_verified, last_login, created_at, updated_at FROM users');
 
   return users.map(user => ({
     ...user,
@@ -674,7 +655,7 @@ async function updateUser(userId, updates) {
     WHERE id = ?
   `;
 
-  await query(sql, [...updatesValues, userId]);
+  await dbModule.query(sql, [...updatesValues, userId]);
 
   return await getUserById(userId);
 }
@@ -687,13 +668,13 @@ async function deleteUser(userId) {
   }
 
   // 不能删除最后一个管理员
-  const adminCounts = await query('SELECT COUNT(*) as count FROM users WHERE role = ?', [Role.ADMIN]);
+  const adminCounts = await dbModule.query('SELECT COUNT(*) as count FROM users WHERE role = ?', [Role.ADMIN]);
   const adminCount = adminCounts[0].count;
   if (adminCount === 1 && user.role === Role.ADMIN) {
     throw new Error('不能删除最后一个管理员账户');
   }
 
-  await query('DELETE FROM users WHERE id = ?', [userId]);
+  await dbModule.query('DELETE FROM users WHERE id = ?', [userId]);
 
   // 记录删除日志
   await logAudit(userId, user.username, 'user_delete', true);
@@ -703,7 +684,7 @@ async function deleteUser(userId) {
 
 // 记录审计日志
 async function logAudit(userId, username, action, success, ip = '', userAgent = '', failureReason = '') {
-  await query(`
+  await dbModule.query(`
     INSERT INTO login_audit (id, user_id, username, ip, user_agent, success, failure_reason, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `, [
@@ -731,12 +712,12 @@ async function getAuditLogs(limit = 100, userId = null) {
   sql += ' ORDER BY created_at DESC LIMIT ?';
   params.push(limit);
 
-  return await query(sql, params);
+  return await dbModule.query(sql, params);
 }
 
 // 清理过期的refresh token
 async function cleanupExpiredTokens() {
-  const result = await query(`
+  const result = await dbModule.query(`
     DELETE FROM refresh_tokens
     WHERE expires_at < ? OR revoked = 1
   `, [Math.floor(Date.now() / 1000)]);

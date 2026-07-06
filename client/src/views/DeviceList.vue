@@ -20,7 +20,7 @@
       </div>
     </div>
 
-    <!-- 统计卡片 -->
+    <!-- 统计卡片 + 分组标签（同一行） -->
     <div class="stats-row" aria-label="设备状态统计">
       <StatCard
         :value="stats.total"
@@ -45,40 +45,21 @@
         aria-label="查看离线设备"
         @click="selectGroup('offline')"
       />
-    </div>
-
-
-
-    <!-- 分组标签页 -->
-    <div v-if="groups.length > 0" class="groups-container" aria-label="设备分组">
-      <div class="groups-header">
-        <h3>设备分组</h3>
-        <button 
-          class="toggle-groups-btn" 
-          @click="toggleGroups"
-          aria-label="{{ groupsExpanded ? '收起分组' : '展开分组' }}"
-        >
-          {{ groupsExpanded ? '▼' : '▶' }}
-        </button>
-      </div>
-      <div v-show="groupsExpanded" class="groups-tabs">
-        <div
-          v-for="group in groups"
-          :key="group.id"
-          class="group-tab"
-          :class="{ active: selectedGroup === group.id }"
-          :style="{ borderLeftColor: group.color }"
-          @click="selectGroup(group.id)"
-          @keydown.enter="selectGroup(group.id)"
-          @keydown.space.prevent="selectGroup(group.id)"
-          role="button"
-          tabindex="0"
-          :aria-pressed="selectedGroup === group.id"
-          :aria-label="`查看${group.name}分组设备`"
-        >
-          <span class="group-tab-name">{{ group.name }}</span>
-          <span class="group-tab-count">{{ getGroupDeviceCount(group.id) }}</span>
-        </div>
+      <!-- 自定义分组标签 -->
+      <div
+        v-for="group in groups"
+        :key="group.id"
+        class="stat-card group-stat-card"
+        :class="{ active: selectedGroup === group.id }"
+        :style="{ borderLeftColor: group.color }"
+        @click="selectGroup(group.id)"
+        role="button"
+        tabindex="0"
+        :aria-pressed="selectedGroup === group.id"
+        :aria-label="`查看${group.name}分组设备`"
+      >
+        <h3>{{ getGroupDeviceCount(group.id) }}</h3>
+        <p>{{ group.name }}</p>
       </div>
     </div>
 
@@ -97,30 +78,21 @@
 
     <!-- 设备列表 - 使用虚拟滚动 -->
     <template v-else>
-      <!-- 卡片视图 - 使用虚拟滚动 -->
-      <div v-if="viewMode === 'card'" class="device-grid-container">
-        <VirtualGrid
-          ref="virtualGridRef"
-          :items="filteredDevices"
-          :item-height="200"
-          :item-width="300"
-          :gap="20"
-          container-height="600px"
-          :buffer-size="3"
-          item-key="id"
+      <!-- 卡片视图 -->
+      <div v-if="viewMode === 'card'" class="device-cards-wrapper">
+        <div
+          v-for="(device, index) in filteredDevices"
+          :key="device.id"
+          class="device-card-wrapper"
         >
-          <template #item="{ item, index }">
-            <div class="device-card-wrapper">
-              <DeviceCard
-                :device="item"
-                :index="index"
-                @dragstart="handleDragStart($event, item, index)"
-                @dragend="handleDragEnd($event)"
-                @drop="handleDrop($event, index)"
-              />
-            </div>
-          </template>
-        </VirtualGrid>
+          <DeviceCard
+            :device="device"
+            :index="index"
+            @dragstart="handleDragStart($event, device, index)"
+            @dragend="handleDragEnd($event)"
+            @drop="handleDrop($event, index)"
+          />
+        </div>
       </div>
 
       <!-- 表格视图 -->
@@ -170,7 +142,7 @@
                 <div class="table-cell table-cell-storage" role="cell" aria-label="存储使用率">{{ item.storage_usage > 0 ? item.storage_usage + '%' : '无卡' }}</div>
                 <div class="table-cell table-cell-delay1" role="cell" aria-label="延迟时间">{{ item.raw?.delay || item.delay || 0 }}ms</div>
                 <div class="table-cell table-cell-delay2" role="cell" aria-label="延迟时间2">{{ item.raw?.delay2 || item.delay2 || 0 }}ms</div>
-                <div class="table-cell table-cell-uptime" role="cell" aria-label="上线时间">{{ item.raw?.upTime || item.upTime || '-' }}</div>
+                <div class="table-cell table-cell-uptime" role="cell" :aria-label="'上线时间 ' + formatUpTime(item)">{{ formatUpTime(item) }}</div>
               </div>
             </template>
             </VirtualList>
@@ -191,9 +163,9 @@ import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { deviceApi } from '../api'
 import socketService from '../utils/socket'
 import { useDeviceStore } from '../stores/devices'
+import { useSyncManager } from '../utils/syncManager'
 import getDeviceWorker from '../utils/deviceWorkerManager'
 import VirtualList from '../components/VirtualList.vue'
-import VirtualGrid from '../components/VirtualGrid.vue'
 import Skeleton from '../components/Skeleton.vue'
 import DeviceCard from '../components/DeviceCard.vue'
 import StatCard from '../components/StatCard.vue'
@@ -252,9 +224,11 @@ export interface Stats {
 // Store 实例
 const deviceStore = useDeviceStore()
 
+// 同步管理器实例
+const syncManager = useSyncManager()
+
 // 虚拟滚动引用
 const virtualListRef = ref(null)
-const virtualGridRef = ref(null)
 
 // Web Worker 实例 - 用于处理数据密集型操作
 const deviceWorker = getDeviceWorker()
@@ -266,9 +240,8 @@ deviceWorker.init()
 const loading = ref<boolean>(true) // 加载状态
 const error = ref<string>('') // 错误信息
 const stats = ref<Stats>({ total: 0, online: 0, offline: 0 }) // 设备统计信息
-const viewMode = ref<'card' | 'table'>('card') // 视图模式：card 或 table
+const viewMode = ref<'card' | 'table'>('table') // 默认使用表格视图
 const selectedGroup = ref<string>('all') // 当前选中的分组
-const groupsExpanded = ref<boolean>(true) // 分组标签是否展开
 const draggedDevice = ref<Device | null>(null) // 正在拖拽的设备
 const draggedIndex = ref<number>(-1) // 正在拖拽的设备索引
 
@@ -394,9 +367,6 @@ watch(selectedGroup, (newGroup) => {
   if (virtualListRef.value) {
     virtualListRef.value.scrollTo(0)
   }
-  if (virtualGridRef.value) {
-    virtualGridRef.value.scrollTo(0)
-  }
 })
 
 /**
@@ -438,13 +408,6 @@ const fetchGroups = async () => {
  */
 const selectGroup = (group) => {
   selectedGroup.value = group
-}
-
-/**
- * 切换分组展开/收起状态
- */
-const toggleGroups = () => {
-  groupsExpanded.value = !groupsExpanded.value
 }
 
 /**
@@ -490,6 +453,42 @@ const handleDrop = (event, dropIndex) => {
  */
 const getGroupDeviceCount = (groupId) => {
   return deviceStore.groupDeviceCount(groupId)
+}
+
+const formatUpTime = (device) => {
+  const raw = device.raw?.upTime || device.upTime
+  if (!raw) return '-'
+
+  if (/^\d{4}-\d{2}-\d{2}[\sT]\d{2}:\d{2}/.test(raw)) {
+    const date = new Date(raw)
+    if (!isNaN(date.getTime())) {
+      const now = new Date()
+      const diffMs = now - date
+      const diffMin = Math.floor(diffMs / 60000)
+      if (diffMin < 1) return '刚刚'
+      if (diffMin < 60) return `${diffMin}分钟`
+      const diffHour = Math.floor(diffMin / 60)
+      if (diffHour < 24) return `${diffHour}小时`
+      const diffDay = Math.floor(diffHour / 24)
+      if (diffDay < 30) return `${diffDay}天`
+      const diffMonth = Math.floor(diffDay / 30)
+      return `${diffMonth}月`
+    }
+  }
+
+  if (/^\d+$/.test(raw)) {
+    const seconds = parseInt(raw)
+    if (seconds < 60) return `${seconds}s`
+    const minutes = Math.floor(seconds / 60)
+    if (minutes < 60) return `${minutes}m`
+    const hours = Math.floor(minutes / 60)
+    if (hours < 24) return `${hours}h${minutes % 60}m`
+    const days = Math.floor(hours / 24)
+    return `${days}d${hours % 24}h`
+  }
+
+  if (raw.length > 10) return raw.substring(0, 10)
+  return raw
 }
 
 // Socket 事件处理
@@ -578,22 +577,37 @@ const handleDeviceRemoved = (data) => {
   }
 }
 
-onMounted(() => {
+/**
+ * 统一的数据同步处理函数（方案B）
+ * 接收服务器推送的完整数据，执行完整同步
+ */
+const handleGroupSync = (data) => {
+  console.log('[DeviceList] 收到同步数据:', data.eventType, 'timestamp:', data.timestamp)
+  deviceStore.fullSync(data)
+}
+
+onMounted(async () => {
   socketService.connect()
 
-  fetchDevices()
-  fetchGroups()
+  await fetchDevices()
+  await fetchGroups()
+  await deviceStore.loadDeviceGroupMappings() // 确保在分组加载完成后执行
 
   socketService.on('devices:added', handleDevicesAdded)
   socketService.on('devices:updated', handleDevicesUpdated)
   socketService.on('device:delete', handleDeviceDelete)
   socketService.on('sync:heartbeat', handleSyncHeartbeat)
   socketService.on('sync:error', handleSyncError)
-  socketService.on('group:create', handleGroupCreate)
-  socketService.on('group:update', handleGroupUpdate)
-  socketService.on('group:delete', handleGroupDelete)
-  socketService.on('group:device_added', handleDeviceAdded)
-  socketService.on('group:device_removed', handleDeviceRemoved)
+  // 方案B：使用统一的 group:sync 事件
+  socketService.on('group:sync', handleGroupSync)
+
+  // 房间机制：加入所有分组房间以接收精准推送
+  socketService.on('connected', () => {
+    deviceStore.groups.forEach(group => {
+      syncManager.joinRoom(socketService.getSocket(), group.id)
+    })
+    console.log('[DeviceList] 已订阅所有分组房间')
+  })
 })
 
 onUnmounted(() => {
@@ -602,12 +616,15 @@ onUnmounted(() => {
   socketService.off('device:delete', handleDeviceDelete)
   socketService.off('sync:heartbeat', handleSyncHeartbeat)
   socketService.off('sync:error', handleSyncError)
-  socketService.off('group:create', handleGroupCreate)
-  socketService.off('group:update', handleGroupUpdate)
-  socketService.off('group:delete', handleGroupDelete)
-  socketService.off('group:device_added', handleDeviceAdded)
-  socketService.off('group:device_removed', handleDeviceRemoved)
-  
+  // 方案B：移除旧的分组事件监听
+  socketService.off('group:sync', handleGroupSync)
+  socketService.off('connected', null)
+
+  // 清理房间订阅
+  syncManager.getSubscribedRooms().forEach(roomId => {
+    syncManager.leaveRoom(socketService.getSocket(), roomId)
+  })
+
   deviceWorker.destroy()
 })
 
@@ -618,6 +635,7 @@ onUnmounted(() => {
 .device-page {
   padding: 20px;
   min-height: 100vh;
+  background: var(--bg-primary);
 }
 
 .title-container {
@@ -671,107 +689,55 @@ h1 {
   flex-wrap: wrap;
 }
 
-
-
-
-
-.groups-container {
-  margin-bottom: 30px;
-  overflow-x: auto;
-  padding-bottom: 10px;
-}
-
-.groups-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 15px;
-  padding: 0 10px;
-}
-
-.groups-header h3 {
-  color: white;
-  font-size: 1em;
-  margin: 0;
-  text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-}
-
-.toggle-groups-btn {
-  background: rgba(255, 255, 255, 0.95);
-  color: var(--primary-color);
-  border: none;
-  border-radius: 50%;
-  width: 30px;
-  height: 30px;
-  font-size: 1em;
+/* 分组统计卡片 - 与StatCard样式统一 */
+.group-stat-card {
+  background: rgba(255,255,255,0.95);
+  padding: 15px 30px;
+  border-radius: 30px;
+  box-shadow: var(--shadow-md);
+  text-align: center;
+  min-width: 100px;
+  min-height: 80px;
   cursor: pointer;
+  transition: all 0.3s ease;
+  border: 3px solid transparent;
+  border-left: 5px solid var(--primary-color);
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-}
-
-.toggle-groups-btn:hover {
-  transform: scale(1.1);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-}
-
-.groups-tabs {
-  display: flex;
-  gap: 15px;
-  min-width: max-content;
-  padding: 0 10px;
-  transition: all 0.3s ease;
-}
-
-.group-tab {
-  background: rgba(255,255,255,0.95);
-  padding: 12px 25px;
-  border-radius: 20px;
-  box-shadow: var(--shadow-md);
-  cursor: pointer;
-  transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  border-left: 5px solid var(--primary-color);
-  min-width: 120px;
-  min-height: 44px;
-  justify-content: space-between;
   touch-action: manipulation;
   -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
 }
 
-.group-tab:hover {
-  transform: translateY(-2px) scale(1.03);
+.group-stat-card:hover {
+  transform: translateY(-2px) scale(1.05);
   box-shadow: 0 8px 24px rgba(0,0,0,0.3);
   background: linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(102, 126, 234, 0.1) 100%);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.group-tab.active {
+.group-stat-card.active {
+  border-color: #4caf50;
   background: #667eea;
-}
-
-.group-tab.active .group-tab-name,
-.group-tab.active .group-tab-count {
   color: white;
 }
 
-.group-tab-name {
+.group-stat-card h3 {
   color: #667eea;
-  font-weight: bold;
-  font-size: 1em;
+  font-size: 1.5em;
+  margin: 0;
 }
 
-.group-tab-count {
-  background: rgba(102, 126, 234, 0.2);
-  color: #667eea;
-  padding: 2px 10px;
-  border-radius: 12px;
+.group-stat-card p {
+  color: #666;
   font-size: 0.85em;
-  font-weight: bold;
+  margin: 0;
+}
+
+.group-stat-card.active h3,
+.group-stat-card.active p {
+  color: white;
 }
 
 .controls-container {
@@ -886,26 +852,36 @@ h1 {
   color: white;
 }
 
-/* 虚拟滚动容器 */
-.device-grid-container {
-  max-width: 1400px;
-  margin: 0 auto;
-  width: 100%;
-  padding: 0 20px;
-  box-sizing: border-box;
-}
-
 /* 设备卡片容器 */
 .device-cards-wrapper {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 20px;
   padding: 20px 0;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* 设备卡片包装器 */
 .device-card-wrapper {
   width: 100%;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 视图切换动画 */
+.device-cards-wrapper,
+.device-table-container {
+  animation: viewFadeIn 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes viewFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* 拖拽样式 */
@@ -943,7 +919,7 @@ h1 {
 }
 
 .device-table-wrapper {
-  min-width: 800px;
+  min-width: 600px;
   width: 100%;
   display: flex;
   flex-direction: column;
@@ -952,7 +928,7 @@ h1 {
 /* 表头 */
 .device-table-header {
   display: grid;
-  grid-template-columns: repeat(8, 1fr);
+  grid-template-columns: 1.2fr 1fr 0.8fr 0.7fr 0.7fr 0.7fr 0.7fr 0.8fr;
   gap: 15px;
   padding: 15px;
   background: rgba(90, 111, 216, 0.1);
@@ -983,7 +959,7 @@ h1 {
 
 .device-table-row {
   display: grid;
-  grid-template-columns: repeat(8, 1fr);
+  grid-template-columns: 1.2fr 1fr 0.8fr 0.7fr 0.7fr 0.7fr 0.7fr 0.8fr;
   gap: 15px;
   padding: 15px;
   border-bottom: 1px solid var(--border-color);
@@ -1034,12 +1010,8 @@ h1 {
   opacity: 0.8;
 }
 
-/* 响应式布局 - 大屏幕 */
+/* 响应式布局 - 大屏幕（1200px+） */
 @media (min-width: 1200px) {
-  .device-grid-container {
-    max-width: 1600px;
-  }
-
   .device-cards-wrapper {
     grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
     gap: 25px;
@@ -1048,14 +1020,15 @@ h1 {
   .device-info {
     grid-template-columns: repeat(3, 1fr);
   }
+  
+  .device-page {
+    max-width: 1400px;
+    margin: 0 auto;
+  }
 }
 
-/* 响应式布局 - 中等屏幕 */
-@media (max-width: 1199px) and (min-width: 769px) {
-  .device-grid-container {
-    max-width: 1200px;
-  }
-
+/* 响应式布局 - 中型平板（992px-1199px） */
+@media (max-width: 1199px) and (min-width: 992px) {
   .device-cards-wrapper {
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
     gap: 20px;
@@ -1063,6 +1036,36 @@ h1 {
 
   .device-info {
     grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .device-page {
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  
+  .device-table-container {
+    max-width: 1000px;
+  }
+}
+
+/* 响应式布局 - 平板（768px-991px） */
+@media (max-width: 991px) and (min-width: 768px) {
+  .device-cards-wrapper {
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 18px;
+  }
+
+  .device-info {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .device-page {
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  
+  .device-table-container {
+    max-width: 800px;
   }
 }
 
@@ -1099,14 +1102,13 @@ h1 {
     font-size: 1.3em;
   }
 
-  .groups-tabs {
-    gap: 12px;
+  .group-stat-card {
+    padding: 12px 25px;
+    min-width: 90px;
   }
 
-  .group-tab {
-    padding: 12px 20px;
-    min-width: 110px;
-    font-size: 0.95em;
+  .group-stat-card h3 {
+    font-size: 1.3em;
   }
 
   .button-group {
@@ -1149,25 +1151,24 @@ h1 {
   }
 
   .device-table-header {
-    gap: 10px;
-    padding: 12px;
+    gap: 8px;
+    padding: 10px;
+    grid-template-columns: 1.2fr 0.8fr 0.7fr 0.6fr 0.6fr 0.7fr;
   }
 
   .device-table-row {
     font-size: 0.85em;
-    gap: 10px;
-    padding: 12px;
+    gap: 8px;
+    padding: 10px;
     width: 100%;
     box-sizing: border-box;
+    grid-template-columns: 1.2fr 0.8fr 0.7fr 0.6fr 0.6fr 0.7fr;
   }
 
-  /* 小屏幕设备上隐藏部分列 */
   .table-cell-ip,
   .table-cell-storage,
-  .table-cell-delay2,
   .table-header-cell:nth-child(2),
-  .table-header-cell:nth-child(5),
-  .table-header-cell:nth-child(7) {
+  .table-header-cell:nth-child(5) {
     display: none;
   }
 }
@@ -1235,37 +1236,86 @@ h1 {
   }
 
   .device-cards-wrapper {
-    grid-template-columns: 1fr;
-    gap: 12px;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .device-card-wrapper {
+    min-width: 0;
   }
 
   .device-table-container {
-    padding: 10px;
+    padding: 8px;
     width: 100%;
     box-sizing: border-box;
+    overflow-x: hidden;
+  }
+
+  .device-table-wrapper {
+    min-width: 0;
+    width: 100%;
+    border-radius: 10px;
+    overflow: hidden;
   }
 
   .device-table-header {
-    padding: 10px;
+    padding: 10px 6px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: linear-gradient(180deg, rgba(90, 111, 216, 0.15) 0%, rgba(90, 111, 216, 0.08) 100%);
+    border-bottom: 2px solid var(--primary-color);
+    grid-template-columns: 1fr 0.7fr 0.6fr 0.5fr 0.5fr 0.6fr;
+    gap: 4px;
   }
 
   .device-table-row {
     width: 100%;
     box-sizing: border-box;
+    border-bottom: 1px solid rgba(90, 111, 216, 0.1);
+    transition: background-color 0.2s ease;
+    grid-template-columns: 1fr 0.7fr 0.6fr 0.5fr 0.5fr 0.6fr;
+    gap: 4px;
+    padding: 10px 6px;
   }
 
-  /* 超小屏幕设备上进一步隐藏列 */
-  .table-cell-uptime,
-  .table-cell-voltage,
-  .table-cell-delay1,
-  .table-header-cell:nth-child(4),
-  .table-header-cell:nth-child(6),
-  .table-header-cell:nth-child(8) {
-    display: none;
+  .device-table-row:nth-child(even) {
+    background: rgba(90, 111, 216, 0.03);
+  }
+
+  .device-table-row:active {
+    background: rgba(90, 111, 216, 0.08);
+  }
+
+  .table-cell {
+    font-size: 12px;
+    padding: 8px 2px;
+    border-right: 1px solid rgba(90, 111, 216, 0.08);
+  }
+
+  .table-cell:last-child {
+    border-right: none;
+  }
+
+  .table-header-cell {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--primary-color);
+  }
+
+  /* 移动端状态指示器优化 */
+  .status-online-small,
+  .status-offline-small {
+    font-size: 10px;
+    padding: 3px 8px;
+    border-radius: 10px;
   }
 
   /* 移动端触摸优化 */
-  .stat-card, .group-tab, .view-btn, .refresh-btn, .manage-btn, .device-card {
+  .stat-card, .group-stat-card, .view-btn, .refresh-btn, .manage-btn, .device-card {
     touch-action: manipulation;
     -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
     -webkit-touch-callout: none;
@@ -1275,7 +1325,7 @@ h1 {
 
   /* 触摸反馈效果 */
   .stat-card:active,
-  .group-tab:active,
+  .group-stat-card:active,
   .view-toggle-btn:active,
   .refresh-btn:active,
   .manage-btn:active,
@@ -1288,7 +1338,7 @@ h1 {
   /* 增强触摸目标大小 */
   @media (max-width: 768px) {
     .stat-card,
-    .group-tab,
+    .group-stat-card,
     .view-toggle-btn,
     .refresh-btn,
     .manage-btn {
@@ -1301,24 +1351,20 @@ h1 {
   }
 
   /* 移动端滚动条优化 */
-  .groups-container::-webkit-scrollbar,
   .device-table-container::-webkit-scrollbar {
     height: 6px;
   }
 
-  .groups-container::-webkit-scrollbar-track,
   .device-table-container::-webkit-scrollbar-track {
     background: rgba(255, 255, 255, 0.2);
     border-radius: 10px;
   }
 
-  .groups-container::-webkit-scrollbar-thumb,
   .device-table-container::-webkit-scrollbar-thumb {
     background: rgba(90, 111, 216, 0.5);
     border-radius: 10px;
   }
 
-  .groups-container::-webkit-scrollbar-thumb:hover,
   .device-table-container::-webkit-scrollbar-thumb:hover {
     background: rgba(90, 111, 216, 0.8);
   }

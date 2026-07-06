@@ -1,0 +1,344 @@
+// ========================================
+// Accessibility Styles
+// ========================================
+
+// ========================================
+// Focus States
+// ========================================
+
+:focus {
+  outline: 2px solid $primary-color;
+  outline-offset: 2px;
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 2px solid $primary-color;
+  outline-offset: 2px;
+}
+
+// Focus Within
+.focus-within {
+  &:focus-within {
+    outline: 2px solid $primary-color;
+    outline-offset: 2px;
+  }
+}
+
+// ========================================
+// Screen Reader Only Content
+// ========================================
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.sr-only-focusable {
+  &:focus,
+  &:active {
+    position: static;
+    width: auto;
+    height: auto;
+    padding: inherit;
+    margin: inherit;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
+  }
+}
+
+// ========================================
+// Skip Links
+// ========================================
+
+.skip-link {
+  position: absolute;
+  top: -100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: $primary-color;
+  color: white;
+  padding: 12px 24px;
+  z-index: 9999;
+  border-radius: 0 0 8px 8px;
+  text-decoration: none;
+  font-weight: 500;
+  transition: top $transition-fast ease;
+
+  &:focus {
+    top: 0;
+    outline: 2px solid $primary-dark;
+    outline-offset: 2px;
+  }
+}
+
+// ========================================
+// ARIA Expanded States
+// ========================================
+
+[aria-expanded="true"] {
+  .expand-icon {
+    transform: rotate(180deg);
+  }
+}
+
+[aria-expanded="false"] {
+  .expand-icon {
+    transform: rotate(0deg);
+  }
+}
+
+.expand-icon {
+  transition: transform $transition-fast ease;
+  display: inline-block;
+}
+
+// ========================================
+// ARIA Hidden Content
+// ========================================
+
+[aria-hidden="true"] {
+  visibility: visible;
+}
+
+[aria-hidden="false"] {
+  visibility: hidden;
+}
+
+// ========================================
+// Loading States
+// ========================================
+
+[aria-busy="true"] {
+  cursor: wait;
+}
+
+[aria-busy="false"] {
+  cursor: default;
+}
+
+// ========================================
+// Disabled States
+// ========================================
+
+[disabled],
+[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.6;
+  pointer-events: none;
+
+  &:focus {
+    outline: none;
+  }
+}
+
+// ========================================
+// Selected States
+// ========================================
+
+[aria-selected="true"] {
+  background-color: rgba($primary-color, 0.1);
+  color: $primary-color;
+}
+
+[aria-selected="false"] {
+  background-color: transparent;
+}
+
+// ========================================
+// Live Region Announcements
+// ========================================
+
+[aria-live="polite"] {
+  position: relative;
+}
+
+[aria-live="assertive"] {
+  position: relative;
+}
+
+// ========================================
+// Focus Trap for Modals
+// ========================================
+
+.focus-trap {
+  &:focus {
+    outline: none;
+  }
+}
+
+// ========================================
+// High Contrast Mode Support
+// ========================================
+
+@media (prefers-contrast: high) {
+  :root {
+    --primary-color: #0000ff;
+    --text-primary: #000000;
+    --border-color: #000000;
+  }
+
+  .card {
+    border: 2px solid $text-primary;
+  }
+
+  button {
+    border: 2px solid currentColor;
+  }
+
+  input,
+  select,
+  textarea {
+    border: 2px solid $text-primary;
+  }
+}
+
+// ========================================
+// Reduced Motion Support
+// ========================================
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .spinner {
+    animation: none;
+    border: 3px solid $border-color;
+    border-top-color: $primary-color;
+  }
+
+  .pulse {
+    animation: none;
+  }
+
+  .bounce {
+    animation: none;
+  }
+
+  .shake {
+    animation: none;
+  }
+}
+
+// ========================================
+// Keyboard Navigation Styles
+// ========================================
+
+.keyboard-nav {
+  *:focus {
+    outline: 2px solid $primary-color;
+    outline-offset: 2px;
+  }
+}
+
+// ========================================
+// Visible Focus for Keyboard Users
+// ========================================
+
+.keyboard-user {
+  :focus {
+    outline: 2px solid $primary-color;
+    outline-offset: 2px;
+  }
+
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+}
+
+// Detect keyboard vs mouse navigation
+.keyboard-user *:focus-visible {
+  outline: 2px solid $primary-color;
+  outline-offset: 2px;
+}
+
+// ========================================
+// Link Styles with Underline
+// ========================================
+
+a {
+  &:focus {
+    outline: 2px solid $primary-color;
+    outline-offset: 2px;
+    text-decoration: underline;
+  }
+}
+
+// ========================================
+// Button Focus Enhancement
+// ========================================
+
+button {
+  &:focus-visible {
+    outline: 2px solid $primary-color;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 4px rgba($primary-color, 0.3);
+  }
+}
+
+// ========================================
+// Input Focus Enhancement
+// ========================================
+
+input,
+select,
+textarea {
+  &:focus-visible {
+    outline: none;
+    border-color: $primary-color;
+    box-shadow: 0 0 0 3px rgba($primary-color, 0.2);
+  }
+}
+
+// ========================================
+// Interactive Element Focus
+// ========================================
+
+[role="button"],
+[role="link"],
+[role="menuitem"],
+[role="tab"],
+[role="treeitem"] {
+  &:focus-visible {
+    outline: 2px solid $primary-color;
+    outline-offset: 2px;
+  }
+}
+
+// ========================================
+// Form Error States
+// ========================================
+
+[aria-invalid="true"] {
+  border-color: $danger-color !important;
+
+  &:focus {
+    outline: 2px solid $danger-color;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 3px rgba($danger-color, 0.2);
+  }
+}
+
+[aria-describedby] {
+  &:focus {
+    outline: 2px solid $primary-color;
+    outline-offset: 2px;
+  }
+}

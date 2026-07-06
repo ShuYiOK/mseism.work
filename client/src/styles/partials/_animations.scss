@@ -1,0 +1,315 @@
+// ========================================
+// Animation & Transition Styles
+// ========================================
+
+// Animation Duration Constraints
+$min-animation-duration: 200ms;
+$max-animation-duration: 500ms;
+
+// ========================================
+// Layout Transition Classes
+// ========================================
+
+// Modal Transitions
+.modal-enter-active,
+.modal-leave-active {
+  transition: opacity $transition-slow ease;
+}
+
+.modal-enter-from,
+.modal-leave-to {
+  opacity: 0;
+}
+
+.modal-enter-active .modal-content,
+.modal-leave-active .modal-content {
+  transition: transform $transition-slow $scroll-bounce,
+              opacity $transition-slow ease;
+}
+
+.modal-enter-from .modal-content,
+.modal-leave-to .modal-content {
+  opacity: 0;
+  transform: scale(0.95) translateY(20px);
+}
+
+// Menu Transitions
+.menu-enter-active,
+.menu-leave-active {
+  transition: transform $transition-normal $scroll-bounce,
+              opacity $transition-normal ease;
+}
+
+.menu-enter-from,
+.menu-leave-to {
+  opacity: 0;
+  transform: translateX(-20px);
+}
+
+.menu-enter-to,
+.menu-leave-from {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+// Slide Transitions
+.slide-enter-active,
+.slide-leave-active {
+  transition: transform $transition-normal $scroll-bounce;
+}
+
+.slide-enter-from {
+  transform: translateX(100%);
+}
+
+.slide-leave-to {
+  transform: translateX(-100%);
+}
+
+// Fade Transitions
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity $transition-normal ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+// Scale Transitions
+.scale-enter-active,
+.scale-leave-active {
+  transition: transform $transition-normal $scroll-bounce,
+              opacity $transition-normal ease;
+}
+
+.scale-enter-from,
+.scale-leave-to {
+  opacity: 0;
+  transform: scale(0.9);
+}
+
+// ========================================
+// Transform-Based Animations
+// ========================================
+
+// Transform Up
+.transform-up {
+  @include gpu-accelerate;
+  @include will-change(transform);
+
+  &.active,
+  &:active {
+    transform: translateY(-4px);
+  }
+}
+
+// Transform Scale
+.transform-scale {
+  @include gpu-accelerate;
+  @include will-change(transform);
+
+  &:hover {
+    transform: scale(1.02);
+  }
+
+  &:active {
+    transform: scale($touch-scale-active);
+  }
+}
+
+// Transform Rotate
+.transform-rotate {
+  @include gpu-accelerate;
+  @include will-change(transform);
+
+  &:hover {
+    transform: rotate(5deg);
+  }
+}
+
+// ========================================
+// Loading & Spinner Animations
+// ========================================
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid $border-color;
+  border-top-color: $primary-color;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.pulse {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes skeleton-loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.skeleton-loading {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.1) 0%,
+    rgba(255, 255, 255, 0.4) 50%,
+    rgba(255, 255, 255, 0.1) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s ease-in-out infinite;
+}
+
+// ========================================
+// Page Transition
+// ========================================
+
+.page-fade-enter-active,
+.page-fade-leave-active {
+  transition: opacity $transition-slow ease,
+              transform $transition-slow ease;
+}
+
+.page-fade-enter-from {
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.page-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-20px);
+}
+
+// ========================================
+// Slide Up Animation
+// ========================================
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.slide-up {
+  animation: slideUp $transition-normal $scroll-bounce forwards;
+}
+
+// ========================================
+// Bounce Animation
+// ========================================
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.bounce {
+  animation: bounce 1s ease-in-out infinite;
+}
+
+// ========================================
+// Shake Animation
+// ========================================
+
+@keyframes shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  10%, 30%, 50%, 70%, 90% {
+    transform: translateX(-5px);
+  }
+  20%, 40%, 60%, 80% {
+    transform: translateX(5px);
+  }
+}
+
+.shake {
+  animation: shake 0.5s ease-in-out;
+}
+
+// ========================================
+// Focus States with Transform
+// ========================================
+
+.focus-scale {
+  @include transition((transform, box-shadow), $transition-fast);
+  @include gpu-accelerate;
+
+  &:focus {
+    outline: none;
+    transform: scale(1.02);
+    box-shadow: 0 0 0 3px rgba($primary-color, 0.3);
+  }
+}
+
+// ========================================
+// Interactive Card Animation
+// ========================================
+
+.interactive-card {
+  @include transition((transform, box-shadow), $transition-normal);
+  @include gpu-accelerate;
+  cursor: pointer;
+
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: $shadow-lg;
+  }
+
+  &:active {
+    transform: translateY(-2px) scale(0.99);
+  }
+}
+
+// ========================================
+// Arrow Animation
+// ========================================
+
+@keyframes arrowPulse {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(3px);
+  }
+}
+
+.arrow-down {
+  display: inline-block;
+  transition: transform $transition-fast ease;
+
+  &.active {
+    animation: arrowPulse 1s ease-in-out infinite;
+    transform: rotate(180deg);
+  }
+}

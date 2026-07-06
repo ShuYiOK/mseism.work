@@ -44,15 +44,15 @@
           </div>
           <div class="info-item">
             <span class="info-label">坐标X</span>
-            <span class="info-value">{{ device.raw?.coodX || device.coodX || '-' }}</span>
+            <span class="info-value">{{ device.coordinateX || device.coodX || '-' }}</span>
           </div>
           <div class="info-item">
             <span class="info-label">坐标Y</span>
-            <span class="info-value">{{ device.raw?.coodY || device.coodY || '-' }}</span>
+            <span class="info-value">{{ device.coordinateY || device.coodY || '-' }}</span>
           </div>
           <div class="info-item">
             <span class="info-label">坐标Z</span>
-            <span class="info-value">{{ device.raw?.coodZ || device.coodZ || '-' }}</span>
+            <span class="info-value">{{ device.coordinateZ || device.coodZ || '-' }}</span>
           </div>
           <div v-if="device.raw?.upTime || device.upTime" class="info-item">
             <span class="info-label">上线时间</span>
@@ -392,35 +392,68 @@ const toggleOfflineDetails = () => {
 @media (max-width: 768px) {
   .device-card {
     padding: 12px;
+    width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
   }
-  
+
+  .device-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
   .device-id {
     font-size: 1em;
   }
-  
+
   .info-grid {
     grid-template-columns: 1fr 1fr;
     font-size: 0.8em;
+  }
+
+  .info-item {
+    min-width: 0;
+  }
+
+  .info-value {
+    word-break: break-word;
   }
 }
 
 @media (max-width: 480px) {
   .device-card {
     padding: 10px;
+    width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
   }
-  
+
   .device-id {
     font-size: 0.9em;
   }
-  
+
   .info-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr 1fr;
     font-size: 0.75em;
   }
-  
+
+  .info-item {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .info-label {
+    font-size: 0.7em;
+  }
+
+  .info-value {
+    font-size: 0.85em;
+    word-break: break-all;
+  }
+
   .status-badge {
-    padding: 3px 10px;
-    font-size: 0.75em;
+    padding: 3px 8px;
+    font-size: 0.7em;
   }
 }
 </style>

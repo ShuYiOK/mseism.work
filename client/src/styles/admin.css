@@ -1,0 +1,296 @@
+/* 管理后台公共样式 */
+
+/* 管理员卡片通用样式 */
+.admin-card {
+  background: var(--card-bg);
+  border-radius: 12px;
+  box-shadow: var(--shadow-md);
+  padding: 24px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.admin-card:hover {
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-2px);
+}
+
+/* 管理员按钮通用样式 */
+.admin-btn {
+  padding: 10px 20px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+}
+
+.admin-btn-primary {
+  background: var(--primary-color);
+  color: white;
+}
+
+.admin-btn-primary:hover {
+  background: var(--primary-dark);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.admin-btn-primary:active {
+  transform: translateY(0);
+}
+
+.admin-btn-secondary {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+.admin-btn-secondary:hover {
+  background: var(--border-light);
+  transform: translateY(-2px);
+}
+
+.admin-btn-danger {
+  background: var(--danger-color);
+  color: white;
+}
+
+.admin-btn-danger:hover {
+  background: var(--danger-dark);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+/* 管理员输入框通用样式 */
+.admin-input {
+  padding: 10px 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 14px;
+  transition: all 0.3s ease;
+  background: var(--card-bg);
+  color: var(--text-primary);
+  min-height: 44px;
+}
+
+.admin-input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+}
+
+.admin-input::placeholder {
+  color: var(--text-light);
+}
+
+/* 管理员表格通用样式 */
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--card-bg);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+}
+
+.admin-table th {
+  background: rgba(102, 126, 234, 0.1);
+  padding: 16px;
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-primary);
+  border-bottom: 2px solid var(--border-color);
+}
+
+.admin-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-light);
+  color: var(--text-secondary);
+}
+
+.admin-table tr:last-child td {
+  border-bottom: none;
+}
+
+.admin-table tr:hover td {
+  background: rgba(102, 126, 234, 0.03);
+}
+
+/* 管理员徽章通用样式 */
+.admin-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.admin-badge-primary {
+  background: rgba(102, 126, 234, 0.15);
+  color: var(--primary-color);
+}
+
+.admin-badge-success {
+  background: rgba(76, 175, 80, 0.15);
+  color: var(--success-color);
+}
+
+.admin-badge-danger {
+  background: rgba(244, 67, 54, 0.15);
+  color: var(--danger-color);
+}
+
+.admin-badge-warning {
+  background: rgba(255, 152, 0, 0.15);
+  color: var(--warning-color);
+}
+
+/* 管理员标题通用样式 */
+.admin-title {
+  font-size: 1.5em;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 16px;
+}
+
+.admin-subtitle {
+  font-size: 1.2em;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+}
+
+/* 管理员分隔线通用样式 */
+.admin-divider {
+  height: 1px;
+  background: var(--border-color);
+  margin: 20px 0;
+}
+
+/* 管理员动画通用样式 */
+.admin-fade-enter-active,
+.admin-fade-leave-active {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.admin-fade-enter-from {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.admin-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+/* 管理员加载状态通用样式 */
+.admin-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  color: var(--text-secondary);
+}
+
+.admin-loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--border-light);
+  border-top-color: var(--primary-color);
+  border-radius: 50%;
+  animation: admin-spin 1s linear infinite;
+}
+
+@keyframes admin-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 管理员空状态通用样式 */
+.admin-empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-light);
+}
+
+.admin-empty-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+
+.admin-empty-text {
+  font-size: 16px;
+  margin-bottom: 8px;
+}
+
+.admin-empty-hint {
+  font-size: 14px;
+  color: var(--text-light);
+}
+
+/* 管理员响应式工具类 */
+@media (max-width: 768px) {
+  .admin-card {
+    padding: 16px;
+    border-radius: 8px;
+  }
+
+  .admin-btn {
+    padding: 8px 16px;
+    font-size: 13px;
+  }
+
+  .admin-table th,
+  .admin-table td {
+    padding: 10px 12px;
+  }
+
+  .admin-title {
+    font-size: 1.3em;
+  }
+
+  .admin-subtitle {
+    font-size: 1.1em;
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-card {
+    padding: 12px;
+    border-radius: 6px;
+  }
+
+  .admin-btn {
+    padding: 6px 12px;
+    font-size: 12px;
+    min-height: 40px;
+  }
+
+  .admin-input {
+    padding: 8px 12px;
+    font-size: 13px;
+    min-height: 40px;
+  }
+
+  .admin-table th,
+  .admin-table td {
+    padding: 8px 10px;
+    font-size: 13px;
+  }
+
+  .admin-title {
+    font-size: 1.2em;
+  }
+}

@@ -17,6 +17,7 @@
       </router-view>
     </ErrorBoundary>
     <Toast ref="toastRef" />
+    <BottomNav v-show="!appLoading" />
   </div>
 </template>
 
@@ -28,6 +29,7 @@ import { useAuthStore } from './stores/auth'
 import ErrorBoundary from './components/ErrorBoundary.vue'
 import Toast from './components/Toast.vue'
 import Skeleton from './components/Skeleton.vue'
+import BottomNav from './components/BottomNav.vue'
 
 const authStore = useAuthStore()
 const toastRef = ref(null)
@@ -82,6 +84,65 @@ onMounted(() => {
   --text-secondary: #424242;
   --text-light: #ffffff;
   --text-dark: #000000;
+  --bg-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --bg-secondary: #f5f7fa;
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.12);
+  --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.15);
+  --accessible-success: #388e3c;
+  --accessible-danger: #d32f2f;
+  --accessible-warning: #f57c00;
+  --accessible-info: #1976d2;
+}
+
+[data-theme="dark"] {
+  --primary-color: #7a8ff8;
+  --secondary-color: #9c6bc4;
+  --success-color: #66bb6a;
+  --danger-color: #ef5350;
+  --warning-color: #ffb74d;
+  --info-color: #42a5f5;
+  --card-bg: rgba(42, 42, 62, 0.95);
+  --border-color: rgba(122, 143, 248, 0.3);
+  --text-primary: #e0e0e0;
+  --text-secondary: #aaaaaa;
+  --text-light: #1e1e2f;
+  --text-dark: #ffffff;
+  --bg-primary: linear-gradient(135deg, #4a5bc7 0%, #5a3d8a 100%);
+  --bg-secondary: #1e1e2f;
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.5);
+  --accessible-success: #66bb6a;
+  --accessible-danger: #ef5350;
+  --accessible-warning: #ffb74d;
+  --accessible-info: #42a5f5;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --primary-color: #7a8ff8;
+    --secondary-color: #9c6bc4;
+    --success-color: #66bb6a;
+    --danger-color: #ef5350;
+    --warning-color: #ffb74d;
+    --info-color: #42a5f5;
+    --card-bg: rgba(42, 42, 62, 0.95);
+    --border-color: rgba(122, 143, 248, 0.3);
+    --text-primary: #e0e0e0;
+    --text-secondary: #aaaaaa;
+    --text-light: #1e1e2f;
+    --text-dark: #ffffff;
+    --bg-primary: linear-gradient(135deg, #4a5bc7 0%, #5a3d8a 100%);
+    --bg-secondary: #1e1e2f;
+    --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.5);
+    --accessible-success: #66bb6a;
+    --accessible-danger: #ef5350;
+    --accessible-warning: #ffb74d;
+    --accessible-info: #42a5f5;
+  }
 }
 
 * {
@@ -92,13 +153,40 @@ onMounted(() => {
 
 body {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--bg-primary);
   min-height: 100vh;
+  color: var(--text-primary);
 }
 
 .app-container {
   min-height: 100vh;
   position: relative;
+  max-width: 100%;
+  background: var(--bg-secondary);
+}
+
+/* 大屏幕容器限制 */
+@media (min-width: 1200px) {
+  .app-container {
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+}
+
+/* 中型屏幕容器限制 */
+@media (min-width: 992px) and (max-width: 1199px) {
+  .app-container {
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+}
+
+/* 平板屏幕容器限制 */
+@media (min-width: 768px) and (max-width: 991px) {
+  .app-container {
+    max-width: 900px;
+    margin: 0 auto;
+  }
 }
 
 /* 全局骨架屏覆盖层 */

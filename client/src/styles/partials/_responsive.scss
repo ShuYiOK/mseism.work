@@ -1,0 +1,463 @@
+// ========================================
+// Responsive Layout Styles
+// ========================================
+
+// ========================================
+// Container Widths
+// ========================================
+
+.container {
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 16px;
+
+  @include mobile {
+    padding: 0 12px;
+  }
+}
+
+.container-sm {
+  max-width: 900px;
+}
+
+.container-md {
+  max-width: 1100px;
+}
+
+.container-lg {
+  max-width: 1400px;
+}
+
+// ========================================
+// App Container
+// ========================================
+
+.app-container {
+  min-height: 100vh;
+  position: relative;
+  max-width: 100%;
+  background: $bg-secondary;
+
+  @media (min-width: 1200px) {
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  @media (min-width: 992px) and (max-width: 1199px) {
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  @media (min-width: 768px) and (max-width: 991px) {
+    max-width: 900px;
+    margin: 0 auto;
+  }
+}
+
+// ========================================
+// Bottom Navigation Bar
+// ========================================
+
+.bottom-nav {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: $bottom-nav-height;
+  background: $card-bg;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+  z-index: $z-index-fixed;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+  justify-content: space-around;
+  align-items: center;
+
+  @include mobile {
+    display: flex;
+  }
+
+  @include landscape-short {
+    height: 48px;
+  }
+}
+
+.bottom-nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 8px 4px;
+  color: $text-secondary;
+  text-decoration: none;
+  transition: all $touch-color-transition;
+  min-width: $touch-target-min;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+
+  &:active {
+    background-color: rgba($primary-color, 0.1);
+  }
+
+  &.active {
+    color: $primary-color;
+
+    .bottom-nav-icon {
+      transform: scale(1.1);
+    }
+  }
+}
+
+.bottom-nav-icon {
+  font-size: 24px;
+  margin-bottom: 2px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform $touch-feedback-duration cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  transform: translateZ(0);
+
+  @include landscape-short {
+    font-size: 20px;
+    height: 24px;
+  }
+}
+
+.bottom-nav-text {
+  font-size: 10px;
+  font-weight: 500;
+  white-space: nowrap;
+
+  @include landscape-short {
+    font-size: 9px;
+  }
+}
+
+// ========================================
+// Main Content Spacing
+// ========================================
+
+.has-bottom-nav {
+  padding-bottom: calc(#{$bottom-nav-height} + 16px);
+
+  @include landscape-short {
+    padding-bottom: 56px;
+  }
+}
+
+// ========================================
+// Grid System
+// ========================================
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 0 -8px;
+}
+
+.col {
+  flex: 1;
+  padding: 0 8px;
+}
+
+// Column Sizes
+@for $i from 1 through 12 {
+  .col-#{$i} {
+    flex: 0 0 calc(100% / 12 * #{$i});
+    padding: 0 8px;
+  }
+
+  .col-md-#{$i} {
+    @media (min-width: 768px) {
+      flex: 0 0 calc(100% / 12 * #{$i});
+    }
+  }
+
+  .col-lg-#{$i} {
+    @media (min-width: 992px) {
+      flex: 0 0 calc(100% / 12 * #{$i});
+    }
+  }
+}
+
+// ========================================
+// Responsive Display
+// ========================================
+
+.hide-mobile {
+  @include mobile {
+    display: none !important;
+  }
+}
+
+.hide-desktop {
+  @include desktop {
+    display: none !important;
+  }
+}
+
+.show-mobile {
+  display: none !important;
+
+  @include mobile {
+    display: block !important;
+  }
+}
+
+.show-desktop {
+  display: none !important;
+
+  @include desktop {
+    display: block !important;
+  }
+}
+
+// ========================================
+// Responsive Padding & Margin
+// ========================================
+
+.section {
+  padding: 24px 0;
+
+  @include mobile {
+    padding: 16px 0;
+  }
+}
+
+// ========================================
+// Card Layout
+// ========================================
+
+.card {
+  background: $card-bg;
+  border-radius: 8px;
+  box-shadow: $shadow-md;
+  padding: 16px;
+
+  @include mobile {
+    padding: 12px;
+    border-radius: 6px;
+  }
+}
+
+.card-header {
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid $border-color;
+}
+
+.card-body {
+  padding: 12px 0;
+}
+
+.card-footer {
+  padding-top: 12px;
+  margin-top: 12px;
+  border-top: 1px solid $border-color;
+}
+
+// ========================================
+// Responsive Typography
+// ========================================
+
+.text-responsive {
+  @include mobile {
+    font-size: 14px;
+  }
+
+  @include tablet {
+    font-size: 15px;
+  }
+
+  @include desktop {
+    font-size: 16px;
+  }
+}
+
+.title-responsive {
+  @include mobile {
+    font-size: 1.5rem;
+  }
+
+  @include tablet {
+    font-size: 1.75rem;
+  }
+
+  @include desktop {
+    font-size: 2rem;
+  }
+}
+
+// ========================================
+// Flex Utilities
+// ========================================
+
+.flex-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+}
+
+.flex-col {
+  display: flex;
+  flex-direction: column;
+}
+
+.flex-wrap {
+  flex-wrap: wrap;
+}
+
+.flex-nowrap {
+  flex-wrap: nowrap;
+}
+
+.justify-start {
+  justify-content: flex-start;
+}
+
+.justify-center {
+  justify-content: center;
+}
+
+.justify-end {
+  justify-content: flex-end;
+}
+
+.justify-between {
+  justify-content: space-between;
+}
+
+.align-start {
+  align-items: flex-start;
+}
+
+.align-center {
+  align-items: center;
+}
+
+.align-end {
+  align-items: flex-end;
+}
+
+.flex-row-mobile {
+  @include mobile {
+    flex-direction: column;
+  }
+}
+
+// ========================================
+// Spacing Utilities
+// ========================================
+
+$spacing-sizes: (
+  '0': 0,
+  '1': 4px,
+  '2': 8px,
+  '3': 12px,
+  '4': 16px,
+  '5': 20px,
+  '6': 24px,
+  '8': 32px,
+  '10': 40px,
+  '12': 48px
+);
+
+@each $size, $value in $spacing-sizes {
+  .m-#{$size} {
+    margin: $value;
+  }
+
+  .mt-#{$size} {
+    margin-top: $value;
+  }
+
+  .mb-#{$size} {
+    margin-bottom: $value;
+  }
+
+  .ml-#{$size} {
+    margin-left: $value;
+  }
+
+  .mr-#{$size} {
+    margin-right: $value;
+  }
+
+  .mx-#{$size} {
+    margin-left: $value;
+    margin-right: $value;
+  }
+
+  .my-#{$size} {
+    margin-top: $value;
+    margin-bottom: $value;
+  }
+
+  .p-#{$size} {
+    padding: $value;
+  }
+
+  .pt-#{$size} {
+    padding-top: $value;
+  }
+
+  .pb-#{$size} {
+    padding-bottom: $value;
+  }
+
+  .pl-#{$size} {
+    padding-left: $value;
+  }
+
+  .pr-#{$size} {
+    padding-right: $value;
+  }
+
+  .px-#{$size} {
+    padding-left: $value;
+    padding-right: $value;
+  }
+
+  .py-#{$size} {
+    padding-top: $value;
+    padding-bottom: $value;
+  }
+}
+
+// ========================================
+// Width & Height Utilities
+// ========================================
+
+.w-full {
+  width: 100%;
+}
+
+.h-full {
+  height: 100%;
+}
+
+.w-auto {
+  width: auto;
+}
+
+.h-auto {
+  height: auto;
+}
+
+.min-h-screen {
+  min-height: 100vh;
+}
+
+.max-w-full {
+  max-width: 100%;
+}
+
+.max-h-full {
+  max-height: 100%;
+}

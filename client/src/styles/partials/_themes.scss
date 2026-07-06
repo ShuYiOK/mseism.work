@@ -1,0 +1,139 @@
+// ========================================
+// Theme Variables
+// ========================================
+
+:root {
+  --primary-color: #{$primary-color};
+  --primary-light: #{$primary-light};
+  --primary-dark: #{$primary-dark};
+
+  --success-color: #{$success-color};
+  --success-light: #{$success-light};
+  --success-dark: #{$success-dark};
+
+  --danger-color: #{$danger-color};
+  --danger-light: #{$danger-light};
+  --danger-dark: #{$danger-dark};
+
+  --warning-color: #{$warning-color};
+  --warning-light: #{$warning-light};
+  --warning-dark: #{$warning-dark};
+
+  --info-color: #{$info-color};
+  --info-light: #{$info-light};
+  --info-dark: #{$info-dark};
+
+  --device-online: #{$device-online};
+  --device-offline: #{$device-offline};
+  --device-warning: #{$device-warning};
+  --device-idle: #{$device-idle};
+  --device-maintenance: #{$device-maintenance};
+
+  --bg-primary: #{$bg-primary};
+  --bg-secondary: #{$bg-secondary};
+  --card-bg: #{$card-bg};
+  --text-primary: #{$text-primary};
+  --text-secondary: #{$text-secondary};
+  --text-light: #{$text-light};
+  --border-color: #{$border-color};
+  --border-light: #{$border-light};
+  --border-dark: #{$border-dark};
+
+  --shadow-sm: #{$shadow-sm};
+  --shadow-md: #{$shadow-md};
+  --shadow-lg: #{$shadow-lg};
+
+  --accessible-primary: #{$accessible-primary};
+  --accessible-success: #{$accessible-success};
+  --accessible-danger: #{$accessible-danger};
+  --accessible-warning: #{$accessible-warning};
+  --accessible-info: #{$accessible-info};
+
+  --touch-target-min: #{$touch-target-min};
+  --touch-target-height: #{$touch-target-height};
+  --touch-target-padding: #{$touch-target-padding};
+  --touch-scale-down: #{$touch-scale-down};
+  --touch-scale-active: #{$touch-scale-active};
+  --touch-feedback-duration: #{$touch-feedback-duration};
+  --touch-color-transition: #{$touch-color-transition};
+
+  --scroll-behavior: #{$scroll-behavior};
+  --scroll-deceleration: #{$scroll-deceleration};
+  --scroll-bounce: #{$scroll-bounce};
+  --transition-fast: #{$transition-fast};
+  --transition-normal: #{$transition-normal};
+  --transition-slow: #{$transition-slow};
+
+  --bottom-nav-height: #{$bottom-nav-height};
+  --input-height: #{$input-height};
+  --input-spacing: #{$input-spacing};
+
+  --font-size-base: #{$font-size-base};
+  --font-size-lg: #{$font-size-lg};
+  --line-height-body: #{$line-height-body};
+  --line-height-heading: #{$line-height-heading};
+  --font-family-base: #{$font-family-base};
+}
+
+// ========================================
+// Dark Theme
+// ========================================
+
+[data-theme="dark"] {
+  --card-bg: #2a2a3e;
+  --bg-secondary: #1e1e2f;
+  --text-primary: #e0e0e0;
+  --text-secondary: #aaaaaa;
+  --text-light: #888888;
+  --border-color: #404060;
+  --border-light: #303050;
+  --border-dark: #505070;
+
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.5);
+
+  --accessible-primary: #7a8ff8;
+  --accessible-success: #66bb6a;
+  --accessible-danger: #ef5350;
+  --accessible-warning: #ffb74d;
+  --accessible-info: #42a5f5;
+}
+
+// ========================================
+// Auto Dark Mode (prefers-color-scheme)
+// ========================================
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --primary-color: #7a8ff8;
+    --primary-light: #9aaff8;
+    --primary-dark: #5a6fd8;
+
+    --card-bg: rgba(42, 42, 62, 0.95);
+    --bg-secondary: #1e1e2f;
+    --text-primary: #e0e0e0;
+    --text-secondary: #aaaaaa;
+    --text-light: #888888;
+    --border-color: rgba(122, 143, 248, 0.3);
+    --border-light: rgba(122, 143, 248, 0.2);
+    --border-dark: rgba(122, 143, 248, 0.4);
+
+    --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.5);
+
+    --accessible-success: #66bb6a;
+    --accessible-danger: #ef5350;
+    --accessible-warning: #ffb74d;
+    --accessible-info: #42a5f5;
+  }
+}
+
+// ========================================
+// Theme Transition
+// ========================================
+
+:root {
+  transition: background-color 0.3s ease, color 0.3s ease;
+}

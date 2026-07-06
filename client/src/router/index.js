@@ -1,53 +1,45 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
-import DeviceList from '../views/DeviceList.vue'
-import Login from '../views/Login.vue'
-import AdminAuth from '../views/AdminAuth.vue'
-import AdminLayout from '../layouts/AdminLayout.vue'
-import AdminDashboard from '../views/AdminDashboard.vue'
-import AdminGroupManage from '../views/AdminGroupManage.vue'
-import PerformanceMonitor from '../views/PerformanceMonitor.vue'
-import ConfigManage from '../views/ConfigManage.vue'
 
 const routes = [
   {
     path: '/',
     name: 'DeviceList',
-    component: DeviceList
+    component: () => import('../views/DeviceList.vue')
   },
   {
     path: '/login',
     name: 'Login',
-    component: Login
+    component: () => import('../views/Login.vue')
   },
   {
     path: '/admin/auth',
     name: 'AdminAuth',
-    component: AdminAuth
+    component: () => import('../views/AdminAuth.vue')
   },
   {
     path: '/admin',
-    component: AdminLayout,
+    component: () => import('../layouts/AdminLayout.vue'),
     children: [
       {
         path: '',
         name: 'AdminDashboard',
-        component: AdminDashboard
+        component: () => import('../views/AdminDashboard.vue')
       },
       {
         path: 'groups',
         name: 'AdminGroupManage',
-        component: AdminGroupManage
+        component: () => import('../views/AdminGroupManage.vue')
       },
       {
         path: 'performance',
         name: 'PerformanceMonitor',
-        component: PerformanceMonitor
+        component: () => import('../views/PerformanceMonitor.vue')
       },
       {
         path: 'config',
         name: 'ConfigManage',
-        component: ConfigManage
+        component: () => import('../views/ConfigManage.vue')
       }
     ]
   }

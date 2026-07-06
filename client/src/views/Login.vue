@@ -21,20 +21,33 @@
             required
             :disabled="loading"
             class="form-input"
+            autocomplete="username"
           />
         </div>
 
-        <div class="form-group">
+        <div class="form-group password-group">
           <label for="password">密码</label>
-          <input
-            id="password"
-            v-model="formData.password"
-            type="password"
-            placeholder="请输入密码"
-            required
-            :disabled="loading"
-            class="form-input"
-          />
+          <div class="password-input-wrapper">
+            <input
+              id="password"
+              v-model="formData.password"
+              :type="showPassword ? 'text' : 'password'"
+              placeholder="请输入密码"
+              required
+              :disabled="loading"
+              class="form-input password-input"
+              autocomplete="current-password"
+            />
+            <button
+              type="button"
+              @click="togglePasswordVisibility"
+              class="password-toggle-btn"
+              :aria-label="showPassword ? '隐藏密码' : '显示密码'"
+              tabindex="-1"
+            >
+              {{ showPassword ? '🙈' : '👁' }}
+            </button>
+          </div>
         </div>
 
         <button type="submit" class="login-btn" :disabled="loading">
@@ -42,7 +55,6 @@
         </button>
 
         <div class="login-footer">
-          <p class="hint">默认管理员账户: admin / admin123</p>
           <router-link to="/" class="back-link">返回设备列表</router-link>
         </div>
       </form>
@@ -54,11 +66,9 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
-import { useDeviceStore } from '../stores/devices'
 
 const router = useRouter()
 const authStore = useAuthStore()
-const deviceStore = useDeviceStore()
 
 const formData = ref({
   username: '',
@@ -67,19 +77,21 @@ const formData = ref({
 
 const loading = ref(false)
 const error = ref('')
+const showPassword = ref(false)
+
+const togglePasswordVisibility = () => {
+  showPassword.value = !showPassword.value
+}
 
 const handleLogin = async () => {
   try {
     error.value = ''
     loading.value = true
 
-    // 调用登录方法
     await authStore.login(formData.value.username, formData.value.password)
 
-    // 登录成功后跳转到管理页面
     router.push('/admin/groups')
 
-    // 清空表单
     formData.value = {
       username: '',
       password: ''
@@ -89,11 +101,11 @@ const handleLogin = async () => {
     console.error('登录错误:', err)
   } finally {
     loading.value = false
+    showPassword.value = false
   }
 }
 
 onMounted(() => {
-  // 如果已经登录，直接跳转到管理页面
   if (authStore.isAuthenticated) {
     router.push('/admin/groups')
   }
@@ -157,6 +169,16 @@ onMounted(() => {
   font-size: 0.9em;
 }
 
+.password-group {
+  position: relative;
+}
+
+.password-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
 .form-input {
   width: 100%;
   padding: 12px 15px;
@@ -164,6 +186,35 @@ onMounted(() => {
   border-radius: 10px;
   font-size: 1em;
   transition: all 0.3s ease;
+}
+
+.password-input {
+  padding-right: 55px;
+}
+
+.password-toggle-btn {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  font-size: 20px;
+  padding: 8px;
+  cursor: pointer;
+  color: #666;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.password-toggle-btn:hover {
+  background: rgba(102, 126, 234, 0.1);
+  color: #667eea;
+}
+
+.password-toggle-btn:active {
+  transform: translateY(-50%) scale(0.95);
 }
 
 .form-input:focus {
@@ -205,12 +256,6 @@ onMounted(() => {
   margin-top: 20px;
   padding-top: 20px;
   border-top: 1px solid #e0e0e0;
-}
-
-.hint {
-  color: #999;
-  font-size: 0.85em;
-  margin-bottom: 15px;
 }
 
 .back-link {

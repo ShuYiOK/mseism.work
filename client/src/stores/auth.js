@@ -62,13 +62,15 @@ export const useAuthStore = defineStore('auth', () => {
 
   // 保存认证信息
   const saveAuth = (authData) => {
-    accessToken.value = authData.accessToken
-    refreshToken.value = authData.refreshToken
+    // 处理不同的响应格式
+    const tokens = authData.tokens || authData
+    accessToken.value = tokens.accessToken || tokens.access_token
+    refreshToken.value = tokens.refreshToken || tokens.refresh_token
     user.value = authData.user
     
     // 保存到localStorage
-    localStorage.setItem('accessToken', authData.accessToken)
-    localStorage.setItem('refreshToken', authData.refreshToken)
+    localStorage.setItem('accessToken', accessToken.value)
+    localStorage.setItem('refreshToken', refreshToken.value)
     localStorage.setItem('user', JSON.stringify(authData.user))
   }
 

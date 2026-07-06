@@ -1,24 +1,101 @@
 /**
  * 设备路由
  * 处理设备相关的 API 请求
+ * 包含性能优化：字段选择、分页、批处理等
  */
 
 const express = require('express');
 const router = express.Router();
 const deviceService = require('../services/deviceService');
+const { batchProcessor, QueryOptimizer } = require('../modules/batchProcessor');
+const { performanceOptimizer } = require('../modules/performanceOptimizer');
 const { apiRateLimit } = require('../middlewares/rateLimitMiddleware');
+const { deviceSchemas, validateBody, validateQuery } = require('../utils/validators');
+const { ErrorCodes, createErrorResponse } = require('../utils/errorCodes');
+const { asyncHandler } = require('../middlewares/errorHandler');
 
-// 异步处理中间件
-function asyncHandler(fn) {
-  return (req, res, next) => {
-    Promise.resolve(fn(req, res, next)).catch(next);
-  };
+// 性能记录中间件
+function recordPerformance(req, res, next) {
+  const startTime = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - startTime;
+    performanceOptimizer.recordApi(req.path, duration, res.statusCode);
+  });
+  next();
 }
 
-// 获取所有设备
-router.get('/', apiRateLimit(), asyncHandler(async (req, res) => {
+// 获取所有设备（优化版：支持字段选择和分页）
+router.get('/', recordPerformance, apiRateLimit(), asyncHandler(async (req, res) => {
+  const { fields, limit, offset, sort } = req.query;
+  
+  // 字段选择优化
+  const selectFields = QueryOptimizer.sanitizeFields(fields);
+  
+  // 分页优化
+  const effectiveLimit = QueryOptimizer.validateLimit(limit, 1000);
+  const effectiveOffset = QueryOptimizer.validateOffset(offset);
+  
   const devices = await deviceService.getAllDevices();
-  res.json({ success: true, data: devices });
+  
+  // 在应用层处理字段选择
+  let result = devices;
+  if (selectFields) {
+    result = devices.map(d => {
+      const filtered = {};
+      selectFields.forEach(f => {
+        if (d.hasOwnProperty(f)) {
+          filtered[f] = d[f];
+        }
+      });
+      return filtered;
+    });
+  }
+  
+  // 处理排序
+  if (sort) {
+    const sortField = sort.startsWith('-') ? sort.substring(1) : sort;
+    const sortOrder = sort.startsWith('-') ? -1 : 1;
+    result.sort((a, b) => {
+      if (a[sortField] < b[sortField]) return -sortOrder;
+      if (a[sortField] > b[sortField]) return sortOrder;
+      return 0;
+    });
+  }
+  
+  // 处理分页
+  if (effectiveOffset > 0 || limit) {
+    result = result.slice(effectiveOffset, effectiveOffset + effectiveLimit);
+  }
+  
+  res.json({ 
+    success: true, 
+    data: result,
+    meta: {
+      total: devices.length,
+      limit: effectiveLimit,
+      offset: effectiveOffset,
+      fields: selectFields ? selectFields.join(',') : '*'
+    }
+  });
+}));
+
+// 批处理API
+router.post('/batch', recordPerformance, apiRateLimit({
+  windowMs: 60000,
+  max: 20
+}), validateBody(deviceSchemas.batch), asyncHandler(async (req, res) => {
+  const { requests } = req.body;
+
+  const result = await batchProcessor.processBatch(requests);
+
+  res.json({
+    success: true,
+    data: result.results,
+    meta: {
+      ...result.meta,
+      timestamp: new Date().toISOString()
+    }
+  });
 }));
 
 // 获取设备统计

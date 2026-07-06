@@ -38,6 +38,7 @@ const groupService = require('./services/groupService');
 const { errorHandler, notFoundHandler } = require('./middlewares/errorMiddleware');
 const { apiRateLimit, syncRateLimit } = require('./middlewares/rateLimitMiddleware');
 const { authenticateToken, requireAdmin } = require('./middlewares/authMiddleware');
+const { sanitizeMiddleware, validateAndSanitize } = require('./middlewares/sanitize');
 
 // 导入路由
 const authRoutes = require('./routes/authRoutes');
@@ -45,12 +46,7 @@ const configRoutes = require('./routes/configRoutes');
 const deviceRoutes = require('./routes/deviceRoutes');
 const groupRoutes = require('./routes/groupRoutes');
 
-// 异步处理中间件
-function asyncHandler(fn) {
-  return (req, res, next) => {
-    Promise.resolve(fn(req, res, next)).catch(next);
-  };
-}
+const { asyncHandler } = require('./middlewares/errorHandler');
 
 // 访问日志中间件
 function accessLogger(req, res, next) {
@@ -77,34 +73,6 @@ function securityHeaders(req, res, next) {
   next();
 }
 
-// 输入验证中间件
-function validateInput(req, res, next) {
-  // 只在有body的情况下进行验证
-  if (req.body && typeof req.body === 'object') {
-    // 递归验证和清理输入
-    function sanitizeObject(obj) {
-      for (const key in obj) {
-        if (typeof obj[key] === 'string') {
-          if (!SecurityUtils.isInputSafe(obj[key])) {
-            return false;
-          }
-          obj[key] = SecurityUtils.sanitizeInput(obj[key]);
-        } else if (typeof obj[key] === 'object' && obj[key] !== null) {
-          if (!sanitizeObject(obj[key])) {
-            return false;
-          }
-        }
-      }
-      return true;
-    }
-
-    if (!sanitizeObject(req.body)) {
-      return res.status(400).json({ success: false, error: '输入包含不安全的内容' });
-    }
-  }
-  next();
-}
-
 // CORS 配置中间件
 function configureCors() {
   return cors({
@@ -116,6 +84,9 @@ function configureCors() {
 
 const app = express();
 const server = http.createServer(app);
+
+// XSS 防护中间件 - 使用专业的 xss 库
+app.use(sanitizeMiddleware());
 
 // Socket.io 配置 - 支持跨域和高性能
 const io = new Server(server, {
@@ -145,10 +116,35 @@ if (process.env.NODE_ENV === 'production') {
   app.use(validateCsrfToken);
 }
 
-app.use(validateInput);
-
 // 静态文件服务 - 提供前端构建后的文件
-app.use(express.static(path.join(__dirname, '../client/dist')));
+app.use(express.static(path.join(__dirname, '../client/dist'), {
+  maxAge: '1y',
+  etag: true,
+  lastModified: true,
+  setHeaders: (res, path) => {
+    // 对于生产环境，设置更强的缓存
+    if (process.env.NODE_ENV === 'production') {
+      // 对于静态资源文件（JS、CSS、图片等）
+      if (path.endsWith('.js') || path.endsWith('.css') || path.endsWith('.png') || path.endsWith('.jpg') || path.endsWith('.jpeg') || path.endsWith('.svg') || path.endsWith('.webp') || path.endsWith('.avif')) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      }
+      // 对于HTML文件，设置较短的缓存
+      else if (path.endsWith('.html')) {
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+      }
+    }
+  }
+}));
+
+// 前端路由处理 - 对于所有非API请求，返回index.html
+app.use((req, res, next) => {
+  // 跳过API请求和静态文件请求
+  if (req.path.startsWith('/api') || req.path.startsWith('/socket.io') || req.path.match(/\.(js|css|png|jpg|jpeg|gif|ico|svg)$/)) {
+    next();
+  } else {
+    res.sendFile(path.join(__dirname, '../client/dist/index.html'));
+  }
+});
 
 // ============== 特殊路径处理（在日志中间件之前） ==============
 
@@ -329,25 +325,18 @@ async function syncDevicesFromApi() {
         // 解析设备在线状态，严格优先使用 API 返回的 online 字段
         let isOnline = false;
         try {
-          // 严格优先使用 API 返回的 online 字段
-          console.log(`设备 ${d.device} 的 online 字段值:`, d.online, '类型:', typeof d.online);
           if (d.online === true) {
             isOnline = true;
           } else if (d.online === undefined || d.online === null) {
-            // 只有当 online 字段不存在时，才使用 state 字段作为备用
-            console.log(`设备 ${d.device} 的 online 字段不存在，使用 state 字段:`, d.state);
             if (d.state === '1' || d.state === 1 || d.state === true || d.state === '\u0001') {
               isOnline = true;
             }
           } else {
-            // online 字段存在但不是 true，保持离线
-            console.log(`设备 ${d.device} 的 online 字段为:`, d.online, '，设置为离线');
             isOnline = false;
           }
         } catch (e) {
-          console.warn('解析设备状态失败:', e.message, d.state, d.online);
+          console.warn('[设备同步] 解析设备状态失败:', e.message, d.state, d.online);
         }
-        console.log(`设备 ${d.device} 最终在线状态:`, isOnline);
 
         return {
           // 使用 device 字段作为唯一 ID（因为 id 字段全是 "0"）
@@ -357,10 +346,16 @@ async function syncDevicesFromApi() {
           mac_address: d.mac || d.mac_address || '',
           status: isOnline ? 'online' : 'offline',
           online: isOnline,
-          cpu_usage: parseFloat(d.delay) || 0,
-          memory_usage: parseFloat(d.delay2) || 0,
+          cpu_usage: parseFloat(d.cpu) || 0,
+          memory_usage: parseFloat(d.memory) || 0,
           storage_usage: storageVal,
-          temperature: parseFloat(d.volt) || 0,
+          temperature: parseFloat(d.temp) || 0,
+          volt: parseFloat(d.volt) || 0,
+          delay: parseFloat(d.delay) || 0,
+          delay2: parseFloat(d.delay2) || 0,
+          coodX: parseFloat(d.coodX) || 0,
+          coodY: parseFloat(d.coodY) || 0,
+          coodZ: parseFloat(d.coodZ) || 0,
           last_heartbeat: Math.floor(Date.now() / 1000),
           // 原始数据保留（不计入哈希）
           raw: {
@@ -369,7 +364,9 @@ async function syncDevicesFromApi() {
             coodX: d.coodX,
             coodY: d.coodY,
             coodZ: d.coodZ,
-            upTime: d.upTime
+            upTime: d.upTime,
+            delay: d.delay,
+            delay2: d.delay2
           }
         };
       });
@@ -628,8 +625,9 @@ app.use(errorHandler);
 
 process.on('SIGTERM', () => {
   console.log('收到 SIGTERM 信号，正在关闭...');
-  clearInterval(syncTimer);
-  server.close(() => {
+  stopScheduledTasks();
+  server.close(async () => {
+    await db.close();
     console.log('服务器已关闭');
     process.exit(0);
   });
@@ -637,8 +635,9 @@ process.on('SIGTERM', () => {
 
 process.on('SIGINT', () => {
   console.log('收到 SIGINT 信号，正在关闭...');
-  clearInterval(syncTimer);
-  server.close(() => {
+  stopScheduledTasks();
+  server.close(async () => {
+    await db.close();
     console.log('服务器已关闭');
     process.exit(0);
   });

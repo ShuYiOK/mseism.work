@@ -162,17 +162,27 @@ class SocketService {
       this.emit('group:device_removed', data)
     })
 
+    // 统一的分组同步事件（方案B）
+    this.socket.on('group:sync', (data) => {
+      this.lastActivityTime = Date.now()
+      this.emit('group:sync', data)
+    })
+
     return this.socket
   }
 
-  // 加入分组房间
+  // 加入分组房间（便捷方法）
   joinGroup(groupId) {
-    this.socket?.emit('join:group', groupId)
+    if (this.socket) {
+      this.socket.emit('join:group', groupId)
+    }
   }
 
-  // 离开分组房间
+  // 离开分组房间（便捷方法）
   leaveGroup(groupId) {
-    this.socket?.emit('leave:group', groupId)
+    if (this.socket) {
+      this.socket.emit('leave:group', groupId)
+    }
   }
 
   // 发送心跳
@@ -189,7 +199,7 @@ class SocketService {
     this.listeners.get(event).add(callback)
 
     // 如果是 socket 事件，注册到 socket
-    if (this.socket && ['device:update', 'devices:batch', 'devices:added', 'devices:updated', 'device:delete', 'group:create', 'group:update', 'group:delete', 'group:device_added', 'group:device_removed', 'sync:heartbeat', 'sync:error'].includes(event)) {
+    if (this.socket && ['device:update', 'devices:batch', 'devices:added', 'devices:updated', 'device:delete', 'group:sync', 'group:create', 'group:update', 'group:delete', 'group:device_added', 'group:device_removed', 'sync:heartbeat', 'sync:error'].includes(event)) {
       this.socket.on(event, callback)
     }
 
@@ -271,7 +281,12 @@ class SocketService {
     this.isConnecting = false
   }
 
-  // 获取连接状态
+  // 获取原生 socket 实例（用于房间管理）
+  getSocket() {
+    return this.socket
+  }
+
+  // 加入分组房间（便捷方法）获取连接状态
   getConnectionStatus() {
     return {
       connected: this.isConnected,

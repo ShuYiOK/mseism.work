@@ -187,6 +187,193 @@ export const useDeviceStore = defineStore('devices', () => {
     }
   }
 
+  // 加载所有设备-分组映射关系
+  const loadDeviceGroupMappings = async () => {
+    try {
+      const res = await batchApi.getDeviceGroupMappings()
+      if (res.data.success) {
+        const mappings = res.data.data
+        // 重置映射
+        deviceGroupsMap.value = {}
+        groupDevicesMap.value = {}
+
+        // 服务器返回格式: {deviceId: [{id, name, color}]}
+        // 需要转换为: deviceGroupsMap[deviceId] = [groupId, ...]
+        //           groupDevicesMap[groupId] = [deviceId, ...]
+        Object.entries(mappings).forEach(([deviceId, groups]) => {
+          if (!deviceGroupsMap.value[deviceId]) {
+            deviceGroupsMap.value[deviceId] = []
+          }
+
+          groups.forEach(group => {
+            const groupId = group.id
+
+            // 设备 -> 分组映射
+            if (!deviceGroupsMap.value[deviceId].includes(groupId)) {
+              deviceGroupsMap.value[deviceId].push(groupId)
+            }
+
+            // 分组 -> 设备映射
+            if (!groupDevicesMap.value[groupId]) {
+              groupDevicesMap.value[groupId] = []
+            }
+            if (!groupDevicesMap.value[groupId].includes(deviceId)) {
+              groupDevicesMap.value[groupId].push(deviceId)
+            }
+          })
+        })
+        console.log('[Store] 已加载设备-分组映射:', Object.keys(deviceGroupsMap.value).length, '个设备')
+      }
+      return res.data
+    } catch (error) {
+      console.error('加载设备-分组映射失败:', error)
+      throw error
+    }
+  }
+
+  /**
+   * 同步设备-分组映射（方案B - 携带完整数据）
+   * 用于多设备数据同步，接收服务器推送的完整映射数据
+   * @param {Object} mappings - 服务器推送的映射数据 {deviceId: [{id, name, color}]}
+   * @param {Object} options - 同步选项
+   * @param {number} options.timestamp - 服务器时间戳，用于冲突解决
+   * @param {boolean} options.merge - 是否合并模式（true）或替换模式（false）
+   */
+  const syncMappings = (mappings, options = {}) => {
+    const {
+      timestamp = Date.now(),
+      merge = false // 默认使用替换模式
+    } = options
+
+    console.log('[Store] 同步设备-分组映射:', {
+      timestamp,
+      merge,
+      mappingDevices: Object.keys(mappings).length
+    })
+
+    if (merge) {
+      // 合并模式：保留本地数据，添加服务器新数据
+      Object.entries(mappings).forEach(([deviceId, groups]) => {
+        if (!deviceGroupsMap.value[deviceId]) {
+          deviceGroupsMap.value[deviceId] = []
+        }
+
+        groups.forEach(group => {
+          const groupId = group.id
+          if (!deviceGroupsMap.value[deviceId].includes(groupId)) {
+            deviceGroupsMap.value[deviceId].push(groupId)
+          }
+
+          if (!groupDevicesMap.value[groupId]) {
+            groupDevicesMap.value[groupId] = []
+          }
+          if (!groupDevicesMap.value[groupId].includes(deviceId)) {
+            groupDevicesMap.value[groupId].push(deviceId)
+          }
+        })
+      })
+    } else {
+      // 替换模式：用服务器数据完全替换本地数据
+      deviceGroupsMap.value = {}
+      groupDevicesMap.value = {}
+
+      Object.entries(mappings).forEach(([deviceId, groups]) => {
+        if (!deviceGroupsMap.value[deviceId]) {
+          deviceGroupsMap.value[deviceId] = []
+        }
+
+        groups.forEach(group => {
+          const groupId = group.id
+
+          if (!deviceGroupsMap.value[deviceId].includes(groupId)) {
+            deviceGroupsMap.value[deviceId].push(groupId)
+          }
+
+          if (!groupDevicesMap.value[groupId]) {
+            groupDevicesMap.value[groupId] = []
+          }
+          if (!groupDevicesMap.value[groupId].includes(deviceId)) {
+            groupDevicesMap.value[groupId].push(deviceId)
+          }
+        })
+      })
+    }
+
+    console.log('[Store] 同步完成，当前状态:', {
+      deviceMappings: Object.keys(deviceGroupsMap.value).length,
+      groupMappings: Object.keys(groupDevicesMap.value).length
+    })
+  }
+
+  /**
+   * 同步分组数据（方案B）
+   * 用于多设备数据同步，更新分组信息
+   * @param {Object} group - 分组数据
+   * @param {string} eventType - 事件类型
+   */
+  const syncGroup = (group, eventType) => {
+    console.log('[Store] 同步分组数据:', eventType, group?.name || group?.id)
+
+    switch (eventType) {
+      case 'group:create':
+        if (group && !groups.value.find(g => g.id === group.id)) {
+          groups.value.push(group)
+          console.log('[Store] 添加分组:', group.name)
+        }
+        break
+
+      case 'group:update':
+        if (group) {
+          const index = groups.value.findIndex(g => g.id === group.id)
+          if (index !== -1) {
+            groups.value[index] = { ...groups.value[index], ...group }
+            console.log('[Store] 更新分组:', group.name)
+          }
+        }
+        break
+
+      case 'group:delete':
+        if (group) {
+          const groupId = typeof group === 'string' ? group : group.id
+          groups.value = groups.value.filter(g => g.id !== groupId)
+          delete groupDevicesMap.value[groupId]
+          console.log('[Store] 删除分组:', groupId)
+        }
+        break
+
+      default:
+        console.warn('[Store] 未知的分组事件类型:', eventType)
+    }
+  }
+
+  /**
+   * 完整数据同步（方案B - 主入口）
+   * 处理服务器推送的完整同步数据
+   * @param {Object} data - 同步数据 { eventType, timestamp, mappings, group, deviceId, groupId }
+   */
+  const fullSync = (data) => {
+    const { eventType, timestamp, mappings, group, deviceId, groupId } = data
+
+    console.log('[Store] 执行完整数据同步:', {
+      eventType,
+      timestamp,
+      hasMappings: !!mappings,
+      hasGroup: !!group
+    })
+
+    // 1. 先同步分组数据（如果包含）
+    if (group) {
+      syncGroup(group, eventType)
+    }
+
+    // 2. 同步设备-分组映射
+    if (mappings) {
+      syncMappings(mappings, { timestamp, merge: false })
+    }
+
+    console.log('[Store] 完整数据同步完成')
+  }
+
   // 更新设备列表
   const updateDevices = (newDevices) => {
     const deviceMap = new Map(devices.value.map((d, index) => [d.id, index]))
@@ -374,18 +561,26 @@ export const useDeviceStore = defineStore('devices', () => {
     reset,
     fetchOnlineDevices,
     fetchOfflineDevices,
-    fetchGroupDeviceStats
+    fetchGroupDeviceStats,
+    loadDeviceGroupMappings,
+    syncMappings,
+    syncGroup,
+    fullSync
   }
 }, {
   persist: {
     key: 'mseism-device-store',
     storage: localStorage,
-    paths: ['devices', 'groups', 'deviceGroupsMap', 'groupDevicesMap'],
+    paths: [],
     beforeRestore: (ctx) => {
-      console.log('[Store] 开始恢复设备数据...')
+      console.log('[Store] 恢复上下文（数据将从服务器实时获取）')
     },
     afterRestore: (ctx) => {
-      console.log('[Store] 设备数据恢复完成，设备数量:', ctx.store.devices?.length || 0)
+      console.log('[Store] 恢复完成，将从服务器获取最新数据')
+      ctx.store.devices = []
+      ctx.store.groups = []
+      ctx.store.deviceGroupsMap = {}
+      ctx.store.groupDevicesMap = {}
     }
   }
 })

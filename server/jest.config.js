@@ -1,23 +1,32 @@
+/**
+ * Jest 配置文件
+ */
 module.exports = {
   testEnvironment: 'node',
-  coverageDirectory: 'coverage',
+  testMatch: ['**/__tests__/**/*.test.js', '**/*.test.js'],
   collectCoverageFrom: [
-    '**/*.js',
-    '!node_modules/**',
-    '!coverage/**',
-    '!jest.config.js'
+    'services/**/*.js',
+    'modules/**/*.js',
+    'middlewares/**/*.js',
+    'routes/**/*.js',
+    '!**/*.test.js',
+    '!node_modules/**'
   ],
-  testMatch: [
-    '**/__tests__/**/*.js',
-    '**/?(*.)+(spec|test).js'
-  ],
-  verbose: true,
+  coverageDirectory: 'coverage',
+  coverageReporters: ['text', 'lcov', 'html'],
+  coverageThreshold: {
+    global: {
+      branches: 50,
+      functions: 50,
+      lines: 50,
+      statements: 50
+    }
+  },
   testTimeout: 10000,
-  setupFilesAfterEnv: ['<rootDir>/tests/setup.js'],
-  transformIgnorePatterns: [
-    'node_modules/(?!(uuid)/)'
-  ],
-  moduleNameMapper: {
-    '^uuid$': 'uuid'
-  }
+  verbose: true,
+  forceExit: true,
+  clearMocks: true,
+  resetMocks: true,
+  restoreMocks: true,
+  setupFilesAfterEnv: ['./tests/setup.js']
 };

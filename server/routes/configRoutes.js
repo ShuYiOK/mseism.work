@@ -8,43 +8,24 @@ const router = express.Router();
 const configService = require('../services/configService');
 const { apiRateLimit } = require('../middlewares/rateLimitMiddleware');
 const { authenticateToken, requireAdmin } = require('../middlewares/authMiddleware');
+const { asyncHandler } = require('../middlewares/errorHandler');
 const fs = require('fs');
 const path = require('path');
 
-// 异步处理中间件
-function asyncHandler(fn) {
-  return (req, res, next) => {
-    Promise.resolve(fn(req, res, next)).catch(next);
-  };
-}
-
-// 简单的管理员认证中间件（支持会话认证）
-function requireAdminAuth(req, res, next) {
-  // 检查会话认证
-  const adminAuthenticated = req.headers['x-admin-authenticated'] === 'true' || 
-                            req.cookies?.adminAuthenticated === 'true' ||
-                            req.headers['authorization']?.includes('Admin');
-  
-  if (!adminAuthenticated) {
-    return res.status(401).json({ success: false, error: '需要管理员认证' });
-  }
-  next();
-}
-
 // 获取配置
-router.get('/', apiRateLimit(), requireAdminAuth, asyncHandler(async (req, res) => {
+router.get('/', apiRateLimit(), authenticateToken, requireAdmin, asyncHandler(async (req, res) => {
   const config = configService.getConfig();
   res.json({ success: true, data: config });
 }));
 
 // 重新加载配置
-router.post('/reload', apiRateLimit(), requireAdminAuth, asyncHandler(async (req, res) => {
+router.post('/reload', apiRateLimit(), authenticateToken, requireAdmin, asyncHandler(async (req, res) => {
   const result = configService.reloadConfig();
   res.json(result);
 }));
 
 // 验证配置
-router.post('/validate', apiRateLimit(), requireAdminAuth, asyncHandler(async (req, res) => {
+router.post('/validate', apiRateLimit(), authenticateToken, requireAdmin, asyncHandler(async (req, res) => {
   const { config } = req.body;
   if (!config) {
     return res.status(400).json({ success: false, error: '配置对象不能为空' });
@@ -54,7 +35,7 @@ router.post('/validate', apiRateLimit(), requireAdminAuth, asyncHandler(async (r
 }));
 
 // 获取 .env 文件内容
-router.get('/env-file/content', apiRateLimit(), requireAdminAuth, asyncHandler(async (req, res) => {
+router.get('/env-file/content', apiRateLimit(), authenticateToken, requireAdmin, asyncHandler(async (req, res) => {
   try {
     const envPath = path.join(__dirname, '../.env');
     if (fs.existsSync(envPath)) {
@@ -69,7 +50,7 @@ router.get('/env-file/content', apiRateLimit(), requireAdminAuth, asyncHandler(a
 }));
 
 // 更新 .env 文件
-router.post('/env-file/update', apiRateLimit(), requireAdminAuth, asyncHandler(async (req, res) => {
+router.post('/env-file/update', apiRateLimit(), authenticateToken, requireAdmin, asyncHandler(async (req, res) => {
   try {
     const updates = req.body;
     const envPath = path.join(__dirname, '../.env');
@@ -102,7 +83,7 @@ router.post('/env-file/update', apiRateLimit(), requireAdminAuth, asyncHandler(a
 }));
 
 // 获取示例配置
-router.get('/example', apiRateLimit(), requireAdminAuth, asyncHandler(async (req, res) => {
+router.get('/example', apiRateLimit(), authenticateToken, requireAdmin, asyncHandler(async (req, res) => {
   try {
     const exampleContent = `# 服务器配置
 PORT=3001
@@ -112,11 +93,11 @@ NODE_ENV=development
 DB_HOST=localhost
 DB_PORT=3306
 DB_USER=root
-DB_PASSWORD=Steven84
+DB_PASSWORD=your_database_password_here
 DB_NAME=mseism
 
 # 外部设备数据源 API
-DEVICE_API_URL=http://124.238.104.120:81/devices/list
+DEVICE_API_URL=http://your-device-api-host:port/devices/list
 
 # 数据同步配置
 SYNC_INTERVAL=5000

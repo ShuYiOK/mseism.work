@@ -118,6 +118,44 @@ async function getGroupDeviceStats() {
   return await db.getGroupDeviceStats();
 }
 
+/**
+ * 获取可用于添加到指定分组的设备
+ * 排除已归属其他自定义分组的设备，保留未分组和已在当前分组中的设备
+ * @param {string} groupId 目标分组 ID
+ * @returns {Promise<Array>} 可用设备列表，每个设备包含 assignedGroup 信息
+ */
+async function getAvailableDevicesForGroup(groupId) {
+  const db = require('../database');
+
+  const group = await db.getGroupById(groupId);
+  if (!group) {
+    throw new Error('分组不存在');
+  }
+
+  const allDevices = await db.getAllDevices();
+
+  const mappings = await db.query(`
+    SELECT m.device_id, m.group_id, g.name as group_name, g.color as group_color
+    FROM device_group_mapping m
+    INNER JOIN device_groups g ON g.id = m.group_id
+  `);
+
+  const deviceGroupMap = {};
+  mappings.forEach(m => {
+    deviceGroupMap[m.device_id] = {
+      id: m.group_id,
+      name: m.group_name,
+      color: m.group_color
+    };
+  });
+
+  return allDevices.map(device => ({
+    ...device,
+    assignedGroup: deviceGroupMap[device.id] || null,
+    isAvailable: !deviceGroupMap[device.id] || deviceGroupMap[device.id].id === groupId
+  }));
+}
+
 module.exports = {
   getAllGroups,
   getGroupById,
@@ -130,5 +168,6 @@ module.exports = {
   getDeviceGroups,
   getAllGroupsWithDevices,
   getDeviceGroupMappings,
-  getGroupDeviceStats
+  getGroupDeviceStats,
+  getAvailableDevicesForGroup
 };
