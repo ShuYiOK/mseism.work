@@ -238,6 +238,10 @@ app.use('/api/devices', deviceRoutes);
 // ============== 分组相关 API ==============
 app.use('/api/groups', groupRoutes);
 
+// ============== 设备异常监控 API ==============
+const anomalyRoutes = require('./routes/anomalyRoutes');
+app.use('/api/anomalies', anomalyRoutes);
+
 // ============== 管理相关 API ==============
 app.use('/api/admin', adminRoutes);
 
@@ -626,6 +630,7 @@ app.use(errorHandler);
 process.on('SIGTERM', () => {
   console.log('收到 SIGTERM 信号，正在关闭...');
   stopScheduledTasks();
+  require('./services/anomalyService').stopAnomalyDetection();
   server.close(async () => {
     await db.close();
     console.log('服务器已关闭');
@@ -636,6 +641,7 @@ process.on('SIGTERM', () => {
 process.on('SIGINT', () => {
   console.log('收到 SIGINT 信号，正在关闭...');
   stopScheduledTasks();
+  require('./services/anomalyService').stopAnomalyDetection();
   server.close(async () => {
     await db.close();
     console.log('服务器已关闭');
@@ -665,6 +671,10 @@ async function startServer() {
     
     // 启动定时任务
     startScheduledTasks();
+    
+    // 启动设备异常检测服务
+    const anomalyService = require('./services/anomalyService');
+    anomalyService.startAnomalyDetection();
     
     // 启动服务器
     server.listen(PORT, () => {

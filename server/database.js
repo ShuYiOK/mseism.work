@@ -361,6 +361,48 @@ async function initDatabase() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
 
+    // 设备状态变化日志表
+    await query(`
+      CREATE TABLE IF NOT EXISTS device_status_logs (
+        id VARCHAR(36) PRIMARY KEY,
+        device_id VARCHAR(36) NOT NULL,
+        status VARCHAR(20) NOT NULL COMMENT 'online/offline',
+        timestamp INT NOT NULL COMMENT 'Unix timestamp',
+        ip_address VARCHAR(255) COMMENT '设备IP地址',
+        metadata JSON COMMENT '其他元数据'
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
+    // 设备坐标变化日志表
+    await query(`
+      CREATE TABLE IF NOT EXISTS device_coordinate_logs (
+        id VARCHAR(36) PRIMARY KEY,
+        device_id VARCHAR(36) NOT NULL,
+        coodX DOUBLE NOT NULL,
+        coodY DOUBLE NOT NULL,
+        coodZ DOUBLE NOT NULL,
+        timestamp INT NOT NULL COMMENT 'Unix timestamp',
+        change_type VARCHAR(20) DEFAULT 'update' COMMENT 'update/coordinate_change'
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
+    // 设备异常记录表
+    await query(`
+      CREATE TABLE IF NOT EXISTS device_anomalies (
+        id VARCHAR(36) PRIMARY KEY,
+        device_id VARCHAR(36) NOT NULL,
+        anomaly_type VARCHAR(50) NOT NULL COMMENT 'frequent_online_offline/coordinate_change',
+        status_change_count INT DEFAULT 0 COMMENT '状态变化次数',
+        first_occurrence INT NOT NULL COMMENT '首次发生时间',
+        last_occurrence INT NOT NULL COMMENT '最后发生时间',
+        details JSON COMMENT '详细信息',
+        created_at INT DEFAULT 0,
+        updated_at INT DEFAULT 0,
+        FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE,
+        UNIQUE(device_id, anomaly_type)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
     // 创建索引
     try {
       await query(`CREATE INDEX idx_devices_status ON devices(status)`);
@@ -372,6 +414,18 @@ async function initDatabase() {
       await query(`CREATE INDEX idx_mapping_group ON device_group_mapping(group_id)`);
       await query(`CREATE INDEX idx_mapping_group_device ON device_group_mapping(group_id, device_id)`);
       await query(`CREATE INDEX idx_groups_sort ON device_groups(sort_order, name)`);
+      // 状态日志表索引
+      await query(`CREATE INDEX idx_status_logs_device ON device_status_logs(device_id)`);
+      await query(`CREATE INDEX idx_status_logs_timestamp ON device_status_logs(timestamp)`);
+      await query(`CREATE INDEX idx_status_logs_device_time ON device_status_logs(device_id, timestamp)`);
+      // 坐标日志表索引
+      await query(`CREATE INDEX idx_coordinate_logs_device ON device_coordinate_logs(device_id)`);
+      await query(`CREATE INDEX idx_coordinate_logs_timestamp ON device_coordinate_logs(timestamp)`);
+      await query(`CREATE INDEX idx_coordinate_logs_device_time ON device_coordinate_logs(device_id, timestamp)`);
+      // 异常记录表索引
+      await query(`CREATE INDEX idx_anomalies_device ON device_anomalies(device_id)`);
+      await query(`CREATE INDEX idx_anomalies_type ON device_anomalies(anomaly_type)`);
+      await query(`CREATE INDEX idx_anomalies_occurrence ON device_anomalies(last_occurrence)`);
     } catch (error) {
       // 忽略索引创建失败（索引可能已存在）
       console.warn('[警告] 无法创建索引:', error.message);
@@ -1264,6 +1318,169 @@ async function getGroupDeviceStats() {
   return stats;
 }
 
+// 记录设备状态变化
+async function logDeviceStatusChange(deviceId, status, ipAddress = null, metadata = null) {
+  const id = uuidv4();
+  const timestamp = Math.floor(Date.now() / 1000);
+  
+  await query(`
+    INSERT INTO device_status_logs (id, device_id, status, timestamp, ip_address, metadata)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `, [id, deviceId, status, timestamp, ipAddress, metadata ? JSON.stringify(metadata) : null]);
+  
+  console.log(`[DB] 记录设备状态变化: ${deviceId} -> ${status}`);
+  
+  return { id, deviceId, status, timestamp };
+}
+
+// 获取设备状态变化历史
+async function getDeviceStatusHistory(deviceId, hoursAgo = 24, limit = 500) {
+  const timestamp = Math.floor(Date.now() / 1000) - (hoursAgo * 3600);
+  
+  const logs = await query(`
+    SELECT * FROM device_status_logs
+    WHERE device_id = ? AND timestamp >= ?
+    ORDER BY timestamp DESC
+    LIMIT ?
+  `, [deviceId, timestamp, limit]);
+  
+  return logs;
+}
+
+// 记录设备坐标变化
+async function logCoordinateChange(deviceId, coodX, coodY, coodZ, changeType = 'update') {
+  const id = uuidv4();
+  const timestamp = Math.floor(Date.now() / 1000);
+  
+  await query(`
+    INSERT INTO device_coordinate_logs (id, device_id, coodX, coodY, coodZ, timestamp, change_type)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `, [id, deviceId, coodX, coodY, coodZ, timestamp, changeType]);
+  
+  console.log(`[DB] 记录坐标变化: ${deviceId} -> (${coodX}, ${coodY}, ${coodZ})`);
+  
+  return { id, deviceId, coodX, coodY, coodZ, timestamp, changeType };
+}
+
+// 获取设备坐标变化历史
+async function getCoordinateHistory(deviceId, hoursAgo = 24, limit = 500) {
+  const timestamp = Math.floor(Date.now() / 1000) - (hoursAgo * 3600);
+  
+  const logs = await query(`
+    SELECT * FROM device_coordinate_logs
+    WHERE device_id = ? AND timestamp >= ?
+    ORDER BY timestamp DESC
+    LIMIT ?
+  `, [deviceId, timestamp, limit]);
+  
+  return logs;
+}
+
+// 检测频繁上下线的异常设备
+async function detectFrequentOnlineOfflineDevices(hoursAgo = 24, threshold = 3) {
+  const timestamp = Math.floor(Date.now() / 1000) - (hoursAgo * 3600);
+  
+  const anomalies = await query(`
+    SELECT 
+      device_id,
+      COUNT(*) as status_change_count,
+      MIN(timestamp) as first_occurrence,
+      MAX(timestamp) as last_occurrence,
+      GROUP_CONCAT(CONCAT(status, ':', timestamp) ORDER BY timestamp) as change_sequence
+    FROM device_status_logs
+    WHERE timestamp >= ? AND status IN ('online', 'offline')
+    GROUP BY device_id
+    HAVING COUNT(*) > ?
+    ORDER BY status_change_count DESC
+  `, [timestamp, threshold]);
+  
+  return anomalies;
+}
+
+// 保存或更新异常设备记录
+async function saveAnomaly(deviceId, anomalyType, statusChangeCount, firstOccurrence, lastOccurrence, details) {
+  const now = Math.floor(Date.now() / 1000);
+  const id = uuidv4();
+  
+  await query(`
+    INSERT INTO device_anomalies (id, device_id, anomaly_type, status_change_count, first_occurrence, last_occurrence, details, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON DUPLICATE KEY UPDATE
+      status_change_count = VALUES(status_change_count),
+      first_occurrence = VALUES(first_occurrence),
+      last_occurrence = VALUES(last_occurrence),
+      details = VALUES(details),
+      updated_at = VALUES(updated_at)
+  `, [id, deviceId, anomalyType, statusChangeCount, firstOccurrence, lastOccurrence, JSON.stringify(details), now, now]);
+  
+  console.log(`[DB] 保存异常记录: ${deviceId} (${anomalyType})`);
+  return id;
+}
+
+// 获取异常设备列表（带设备信息）
+async function getAnomalousDevices(hoursAgo = 24) {
+  const timestamp = Math.floor(Date.now() / 1000) - (hoursAgo * 3600);
+  
+  const anomalies = await query(`
+    SELECT 
+      a.*,
+      d.name as device_name,
+      d.ip_address,
+      d.online
+    FROM device_anomalies a
+    JOIN devices d ON a.device_id = d.id
+    WHERE a.anomaly_type = 'frequent_online_offline'
+      AND a.last_occurrence >= ?
+      AND a.status_change_count > 3
+    ORDER BY a.status_change_count DESC
+  `, [timestamp]);
+  
+  return anomalies;
+}
+
+// 获取单个异常设备的详细信息
+async function getAnomalyDetails(deviceId) {
+  const anomaly = await query(`
+    SELECT 
+      a.*,
+      d.name as device_name,
+      d.ip_address,
+      d.online,
+      d.coodX,
+      d.coodY,
+      d.coodZ
+    FROM device_anomalies a
+    JOIN devices d ON a.device_id = d.id
+    WHERE a.device_id = ?
+  `, [deviceId]);
+  
+  if (anomaly.length === 0) {
+    return null;
+  }
+  
+  const statusHistory = await getDeviceStatusHistory(deviceId, 24);
+  const coordinateHistory = await getCoordinateHistory(deviceId, 24);
+  
+  return {
+    ...anomaly[0],
+    statusHistory,
+    coordinateHistory
+  };
+}
+
+// 清理过期的异常记录
+async function cleanupOldAnomalies(daysAgo = 7) {
+  const timestamp = Math.floor(Date.now() / 1000) - (daysAgo * 24 * 3600);
+  
+  const result = await query(`
+    DELETE FROM device_anomalies
+    WHERE last_occurrence < ? AND anomaly_type = 'frequent_online_offline'
+  `, [timestamp]);
+  
+  console.log(`[DB] 清理过期异常记录: ${result.affectedRows} 条`);
+  return result.affectedRows;
+}
+
 module.exports = {
   initDatabase,
   // 共享数据库连接池（供其他模块使用）
@@ -1296,6 +1513,16 @@ module.exports = {
   getAllDevicesWithGroups,
   getDevicesByStatus,
   getGroupDeviceStats,
+  // 设备异常监控
+  logDeviceStatusChange,
+  getDeviceStatusHistory,
+  logCoordinateChange,
+  getCoordinateHistory,
+  detectFrequentOnlineOfflineDevices,
+  saveAnomaly,
+  getAnomalousDevices,
+  getAnomalyDetails,
+  cleanupOldAnomalies,
   // 健康检查
   checkPoolHealth,
   getPoolStatus,

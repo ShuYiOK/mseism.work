@@ -200,6 +200,9 @@
         </div>
       </div>
     </div>
+
+    <!-- 异常设备监控 -->
+    <AnomalyMonitor />
   </div>
 </template>
 
@@ -207,6 +210,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useDeviceStore } from '../stores/devices'
 import socketService from '../utils/socket'
+import AnomalyMonitor from '../components/AnomalyMonitor.vue'
 
 const deviceStore = useDeviceStore()
 

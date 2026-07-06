@@ -7,10 +7,10 @@
         <router-link to="/admin/auth" class="manage-btn" aria-label="管理后台" tabindex="0">⚙</router-link>
         <button 
           class="view-toggle-btn" 
-          @click="viewMode = viewMode === 'card' ? 'table' : 'card'" 
-          :aria-label="viewMode === 'card' ? '切换到表格视图' : '切换到卡片视图'"
+          @click="toggleViewMode" 
+          :aria-label="viewModeLabel"
         >
-          {{ viewMode === 'card' ? '☰' : '☷' }}
+          {{ viewModeIcon }}
         </button>
         <button 
           class="refresh-btn" 
@@ -21,7 +21,7 @@
     </div>
 
     <!-- 统计卡片 + 分组标签（同一行） -->
-    <div class="stats-row" aria-label="设备状态统计">
+    <div v-show="viewMode !== 'map'" class="stats-row" aria-label="设备状态统计">
       <StatCard
         :value="stats.total"
         label="总数"
@@ -151,8 +151,41 @@
       </div>
     </template>
 
+    <!-- 地图视图 -->
+    <div v-if="viewMode === 'map'" class="device-map-wrapper">
+      <div class="map-group-bar">
+        <button
+          class="map-group-btn"
+          :class="{ active: selectedGroup === 'all' }"
+          @click="selectGroup('all')"
+        >全部 ({{ stats.total }})</button>
+        <button
+          class="map-group-btn"
+          :class="{ active: selectedGroup === 'online' }"
+          @click="selectGroup('online')"
+        >在线 ({{ stats.online }})</button>
+        <button
+          class="map-group-btn"
+          :class="{ active: selectedGroup === 'offline' }"
+          @click="selectGroup('offline')"
+        >离线 ({{ stats.offline }})</button>
+        <button
+          v-for="group in groups"
+          :key="group.id"
+          class="map-group-btn"
+          :class="{ active: selectedGroup === group.id }"
+          :style="selectedGroup === group.id ? { background: group.color, borderColor: group.color, color: '#fff' } : {}"
+          @click="selectGroup(group.id)"
+        >{{ group.name }} ({{ getGroupDeviceCount(group.id) }})</button>
+        <button class="map-exit-btn" @click="viewMode = 'table'" aria-label="退出地图视图">
+          ✕
+        </button>
+      </div>
+      <DeviceMap :devices="filteredDevices" />
+    </div>
+
     <!-- 版权信息 -->
-    <div class="copyright">
+    <div v-show="viewMode !== 'map'" class="copyright">
       © 2026 lsby1984 版权所有
     </div>
   </div>
@@ -169,6 +202,7 @@ import VirtualList from '../components/VirtualList.vue'
 import Skeleton from '../components/Skeleton.vue'
 import DeviceCard from '../components/DeviceCard.vue'
 import StatCard from '../components/StatCard.vue'
+import DeviceMap from '../components/DeviceMap.vue'
 
 // 设备类型定义 - 匹配API返回的数据结构
 export interface Device {
@@ -240,7 +274,7 @@ deviceWorker.init()
 const loading = ref<boolean>(true) // 加载状态
 const error = ref<string>('') // 错误信息
 const stats = ref<Stats>({ total: 0, online: 0, offline: 0 }) // 设备统计信息
-const viewMode = ref<'card' | 'table'>('table') // 默认使用表格视图
+const viewMode = ref<'card' | 'table' | 'map'>('table') // 默认使用表格视图
 const selectedGroup = ref<string>('all') // 当前选中的分组
 const draggedDevice = ref<Device | null>(null) // 正在拖拽的设备
 const draggedIndex = ref<number>(-1) // 正在拖拽的设备索引
@@ -253,6 +287,21 @@ const deviceGroupsMap = computed(() => deviceStore.deviceGroupsMap)
 // 过滤后的设备列表
 const filteredDevices = ref<Device[]>([])
 
+const toggleViewMode = () => {
+  const modes = ['table', 'card', 'map'] as const
+  const currentIndex = modes.indexOf(viewMode.value)
+  viewMode.value = modes[(currentIndex + 1) % modes.length]
+}
+
+const viewModeIcon = computed(() => {
+  const icons = { table: '☷', card: '☰', map: '🗺' }
+  return icons[viewMode.value]
+})
+
+const viewModeLabel = computed(() => {
+  const labels = { table: '切换到卡片视图', card: '切换到地图视图', map: '切换到表格视图' }
+  return labels[viewMode.value]
+})
 /**
  * 过滤设备列表
  * 优先使用主线程处理，确保分组过滤正确
@@ -1412,5 +1461,84 @@ h1 {
   .device-info {
     font-size: 0.8em;
   }
+}
+
+.device-map-wrapper {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 999;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+}
+
+.map-exit-btn {
+  width: 30px;
+  height: 30px;
+  border: 1px solid #e0e0e0;
+  background: #f5f5f5;
+  color: #666;
+  font-size: 14px;
+  border-radius: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.map-exit-btn:hover {
+  background: #ffebee;
+  border-color: #fca5a5;
+  color: #f44336;
+}
+
+.map-group-bar {
+  display: flex;
+  gap: 6px;
+  padding: 8px 12px;
+  background: #fff;
+  border-bottom: 1px solid #e5e7eb;
+  overflow-x: auto;
+  flex-shrink: 0;
+  -webkit-overflow-scrolling: touch;
+  align-items: center;
+}
+
+.map-group-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.map-group-btn {
+  padding: 6px 14px;
+  border: 1px solid #e0e0e0;
+  border-radius: 20px;
+  background: #f9fafb;
+  color: #555;
+  font-size: 0.85em;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+
+.map-group-btn:hover {
+  background: #e8eaf6;
+  border-color: #c5cae9;
+}
+
+.map-group-btn.active {
+  background: #667eea;
+  border-color: #667eea;
+  color: #fff;
+}
+
+.device-map-wrapper :deep(.device-map-container) {
+  flex: 1;
+  min-height: 0;
 }
 </style>

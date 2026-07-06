@@ -301,6 +301,15 @@ export const performanceApi = {
   reset: (config) => api.post('/performance/reset', {}, config)
 }
 
+// 设备异常监控 API
+export const anomalyApi = {
+  getAnomalousDevices: (config) => api.get('/anomalies', config),
+  getDeviceAnomalyDetails: (deviceId, config) => api.get(`/anomalies/${encodeURIComponent(deviceId)}`, config),
+  getStatusHistory: (deviceId, hours = 24, config) => api.get(`/anomalies/${encodeURIComponent(deviceId)}/status-history?hours=${hours}`, config),
+  getCoordinateHistory: (deviceId, hours = 24, config) => api.get(`/anomalies/${encodeURIComponent(deviceId)}/coordinate-history?hours=${hours}`, config),
+  triggerDetection: (config) => api.post('/anomalies/detect', {}, config)
+}
+
 // 日志相关 API
 export const logApi = {
   getErrors: (limit = 100, config) => api.get(`/logs/errors?limit=${limit}`, config),
