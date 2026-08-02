@@ -26,12 +26,15 @@ const CONFIG = {
   // 登录锁定时间（分钟）
   LOGIN_LOCKOUT_TIME: config.LOGIN_LOCKOUT_TIME,
   // 初始管理员密码
-  INITIAL_ADMIN_PASSWORD: config.INITIAL_ADMIN_PASSWORD || 'admin123'
+  INITIAL_ADMIN_PASSWORD: config.INITIAL_ADMIN_PASSWORD || 'admin123',
+  // 初始超级管理员（root）密码
+  INITIAL_ROOT_PASSWORD: config.INITIAL_ROOT_PASSWORD || 'root123'
 };
 
 // 用户角色
 const Role = {
-  ADMIN: 'admin',
+  SUPER_ADMIN: 'root', // 最高权限，可操作全部后台
+  ADMIN: 'admin',      // 普通后台用户，仅仪表盘与分组管理
   USER: 'user',
   VIEWER: 'viewer'
 };
@@ -55,18 +58,24 @@ const Permission = {
 };
 
 // 角色权限映射
+// 全部权限列表（root 与 admin 共用）
+const ALL_PERMISSIONS = [
+  Permission.DEVICE_READ,
+  Permission.DEVICE_WRITE,
+  Permission.DEVICE_DELETE,
+  Permission.GROUP_READ,
+  Permission.GROUP_WRITE,
+  Permission.GROUP_DELETE,
+  Permission.SYSTEM_MANAGE,
+  Permission.SYSTEM_MONITOR,
+  Permission.USER_MANAGE
+];
+
 const RolePermissions = {
-  [Role.ADMIN]: [
-    Permission.DEVICE_READ,
-    Permission.DEVICE_WRITE,
-    Permission.DEVICE_DELETE,
-    Permission.GROUP_READ,
-    Permission.GROUP_WRITE,
-    Permission.GROUP_DELETE,
-    Permission.SYSTEM_MANAGE,
-    Permission.SYSTEM_MONITOR,
-    Permission.USER_MANAGE
-  ],
+  // root：最高权限，拥有全部权限
+  [Role.SUPER_ADMIN]: [...ALL_PERMISSIONS],
+  // admin：全部权限（实际的页面级限制在前端实现，后端系统级接口由 requireSuperAdmin 保护）
+  [Role.ADMIN]: [...ALL_PERMISSIONS],
   [Role.USER]: [
     Permission.DEVICE_READ,
     Permission.GROUP_READ,
@@ -162,6 +171,9 @@ async function initUserDatabase() {
     // 创建默认管理员账户（如果不存在）
     await createDefaultAdmin();
 
+    // 创建默认超级管理员账户（如果不存在）
+    await createDefaultRoot();
+
     console.log('[认证系统] 用户数据库初始化完成');
   } catch (error) {
     console.error('[认证系统] 数据库初始化失败:', error.message);
@@ -194,6 +206,35 @@ async function createDefaultAdmin() {
     
     console.log('[认证系统] 默认管理员账户已创建');
     console.log('[认证系统] 用户名: admin');
+    console.log('[认证系统] ⚠️  请立即修改默认密码！');
+  }
+}
+
+// 创建默认超级管理员（root，最高权限）
+async function createDefaultRoot() {
+  const users = await dbModule.query('SELECT id FROM users WHERE username = ?', ['root']);
+  const rootExists = users.length > 0;
+
+  if (!rootExists) {
+    const rootId = crypto.randomUUID();
+    const passwordHash = await bcrypt.hash(CONFIG.INITIAL_ROOT_PASSWORD, CONFIG.BCRYPT_ROUNDS);
+
+    await dbModule.query(`
+      INSERT INTO users (id, username, password_hash, email, role, permissions, is_active, email_verified)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `, [
+      rootId,
+      'root',
+      passwordHash,
+      'root@localhost',
+      Role.SUPER_ADMIN,
+      JSON.stringify(RolePermissions[Role.SUPER_ADMIN]),
+      1,
+      1
+    ]);
+
+    console.log('[认证系统] 默认超级管理员账户已创建');
+    console.log('[认证系统] 用户名: root');
     console.log('[认证系统] ⚠️  请立即修改默认密码！');
   }
 }
@@ -499,8 +540,8 @@ function hasPermission(user, permission) {
     return false;
   }
 
-  // 管理员拥有所有权限
-  if (user.role === Role.ADMIN) {
+  // root 与 admin 拥有所有权限
+  if (user.role === Role.SUPER_ADMIN || user.role === Role.ADMIN) {
     return true;
   }
 
@@ -667,11 +708,14 @@ async function deleteUser(userId) {
     throw new Error('用户不存在');
   }
 
-  // 不能删除最后一个管理员
-  const adminCounts = await dbModule.query('SELECT COUNT(*) as count FROM users WHERE role = ?', [Role.ADMIN]);
-  const adminCount = adminCounts[0].count;
-  if (adminCount === 1 && user.role === Role.ADMIN) {
-    throw new Error('不能删除最后一个管理员账户');
+  // 不能删除最后一个管理员（root / admin 各自保护）
+  const protectedRoles = [Role.SUPER_ADMIN, Role.ADMIN];
+  if (protectedRoles.includes(user.role)) {
+    const counts = await dbModule.query('SELECT COUNT(*) as count FROM users WHERE role = ?', [user.role]);
+    if (counts[0].count === 1) {
+      const roleName = user.role === Role.SUPER_ADMIN ? '超级管理员' : '管理员';
+      throw new Error(`不能删除最后一个${roleName}账户`);
+    }
   }
 
   await dbModule.query('DELETE FROM users WHERE id = ?', [userId]);

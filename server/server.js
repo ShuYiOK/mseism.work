@@ -34,7 +34,7 @@ const groupService = require('./services/groupService');
 // 导入中间件
 const { errorHandler, notFoundHandler } = require('./middlewares/errorMiddleware');
 const { apiRateLimit, syncRateLimit } = require('./middlewares/rateLimitMiddleware');
-const { authenticateToken, requireAdmin } = require('./middlewares/authMiddleware');
+const { authenticateToken, requireSuperAdmin } = require('./middlewares/authMiddleware');
 const { sanitizeMiddleware, validateAndSanitize } = require('./middlewares/sanitize');
 
 // 导入路由
@@ -555,7 +555,7 @@ app.get('/api/performance/stats',
 // 重置性能监控
 app.post('/api/performance/reset', 
   authenticateToken,
-  requireAdmin,
+  requireSuperAdmin,
   asyncHandler(async (req, res) => {
   performanceMonitor.reset();
   res.json({ success: true, message: '性能监控已重置' });

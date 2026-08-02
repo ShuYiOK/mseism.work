@@ -8,7 +8,7 @@
         <input
           type="text"
           v-model="username"
-          placeholder="用户名 (admin)"
+          placeholder="用户名 (admin / root)"
           class="text-input"
           autocomplete="username"
         />

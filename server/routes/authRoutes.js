@@ -7,7 +7,7 @@ const express = require('express');
 const router = express.Router();
 const auth = require('../auth');
 const { apiRateLimit } = require('../middlewares/rateLimitMiddleware');
-const { authenticateToken, requireAdmin } = require('../middlewares/authMiddleware');
+const { authenticateToken, requireSuperAdmin } = require('../middlewares/authMiddleware');
 const { ErrorCodes, createErrorResponse } = require('../utils/errorCodes');
 const { asyncHandler } = require('../middlewares/errorHandler');
 
@@ -187,13 +187,13 @@ router.post('/revoke-all', authenticateToken, asyncHandler(async (req, res) => {
 // ============== 仅管理员可用的接口 ==============
 
 // 获取所有用户
-router.get('/users', authenticateToken, requireAdmin, asyncHandler(async (req, res) => {
+router.get('/users', authenticateToken, requireSuperAdmin, asyncHandler(async (req, res) => {
   const users = await auth.getAllUsers();
   res.json({ success: true, data: users });
 }));
 
 // 获取指定用户
-router.get('/users/:id', authenticateToken, requireAdmin, asyncHandler(async (req, res) => {
+router.get('/users/:id', authenticateToken, requireSuperAdmin, asyncHandler(async (req, res) => {
   const user = await auth.getUserById(req.params.id);
   if (!user) {
     return res.status(404).json(createErrorResponse(ErrorCodes.RESOURCE.NOT_FOUND));
@@ -202,7 +202,7 @@ router.get('/users/:id', authenticateToken, requireAdmin, asyncHandler(async (re
 }));
 
 // 更新用户信息（角色、激活状态等）
-router.put('/users/:id', authenticateToken, requireAdmin, asyncHandler(async (req, res) => {
+router.put('/users/:id', authenticateToken, requireSuperAdmin, asyncHandler(async (req, res) => {
   try {
     const user = await auth.updateUser(req.params.id, req.body);
     res.json({ success: true, data: user });
@@ -212,7 +212,7 @@ router.put('/users/:id', authenticateToken, requireAdmin, asyncHandler(async (re
 }));
 
 // 管理员重置用户密码
-router.post('/users/:id/reset-password', authenticateToken, requireAdmin, asyncHandler(async (req, res) => {
+router.post('/users/:id/reset-password', authenticateToken, requireSuperAdmin, asyncHandler(async (req, res) => {
   const { newPassword } = req.body;
   if (!newPassword) {
     return res.status(400).json(createErrorResponse(
@@ -230,7 +230,7 @@ router.post('/users/:id/reset-password', authenticateToken, requireAdmin, asyncH
 }));
 
 // 删除用户
-router.delete('/users/:id', authenticateToken, requireAdmin, asyncHandler(async (req, res) => {
+router.delete('/users/:id', authenticateToken, requireSuperAdmin, asyncHandler(async (req, res) => {
   try {
     await auth.deleteUser(req.params.id);
     res.json({ success: true, message: '用户删除成功' });
@@ -240,7 +240,7 @@ router.delete('/users/:id', authenticateToken, requireAdmin, asyncHandler(async 
 }));
 
 // 获取审计日志
-router.get('/audit-logs', authenticateToken, requireAdmin, asyncHandler(async (req, res) => {
+router.get('/audit-logs', authenticateToken, requireSuperAdmin, asyncHandler(async (req, res) => {
   const limit = parseInt(req.query.limit) || 100;
   const userId = req.query.userId || null;
   const logs = await auth.getAuditLogs(limit, userId);
@@ -248,7 +248,7 @@ router.get('/audit-logs', authenticateToken, requireAdmin, asyncHandler(async (r
 }));
 
 // 清理过期 token（管理员手动触发）
-router.post('/cleanup-tokens', authenticateToken, requireAdmin, asyncHandler(async (req, res) => {
+router.post('/cleanup-tokens', authenticateToken, requireSuperAdmin, asyncHandler(async (req, res) => {
   await auth.cleanupExpiredTokens();
   res.json({ success: true, message: '过期 token 清理完成' });
 }));

@@ -29,18 +29,30 @@
       </div>
 
       <nav class="sidebar-nav">
-        <router-link
-          v-for="item in menuItems"
-          :key="item.path"
-          :to="item.path"
-          class="nav-item"
-          :class="{ active: isActive(item.path) }"
-          :title="item.title"
-          @click="isMobile ? toggleSidebar() : null"
-        >
-          <span class="nav-icon">{{ item.icon }}</span>
-          <span class="nav-text">{{ item.title }}</span>
-        </router-link>
+        <template v-for="item in menuItems" :key="item.path">
+          <!-- 受限菜单项（非 root）：灰显且不可点击 -->
+          <span
+            v-if="item.requireRoot && !authStore.isSuperAdmin"
+            class="nav-item nav-item-disabled"
+            :title="`${item.title}（仅 root 账户可用）`"
+          >
+            <span class="nav-icon">{{ item.icon }}</span>
+            <span class="nav-text">{{ item.title }}</span>
+            <span class="nav-lock">🔒</span>
+          </span>
+          <!-- 正常菜单项 -->
+          <router-link
+            v-else
+            :to="item.path"
+            class="nav-item"
+            :class="{ active: isActive(item.path) }"
+            :title="item.title"
+            @click="isMobile ? toggleSidebar() : null"
+          >
+            <span class="nav-icon">{{ item.icon }}</span>
+            <span class="nav-text">{{ item.title }}</span>
+          </router-link>
+        </template>
       </nav>
 
       <div class="sidebar-footer">
@@ -67,11 +79,22 @@
 
       <!-- 路由视图 -->
       <div class="admin-content">
-        <router-view v-slot="{ Component }">
-          <transition name="fade" mode="out-in">
-            <component :is="Component" />
-          </transition>
-        </router-view>
+        <div class="content-wrapper">
+          <router-view v-slot="{ Component }">
+            <transition name="fade" mode="out-in">
+              <component :is="Component" />
+            </transition>
+          </router-view>
+          <!-- 权限不足遮罩：admin 访问受限页面时冻结内容 -->
+          <div v-if="isPageLocked" class="page-lock-overlay">
+            <div class="lock-card">
+              <div class="lock-icon">🔒</div>
+              <div class="lock-title">权限不足</div>
+              <div class="lock-desc">该功能仅 <strong>root</strong> 超级管理员账户可用</div>
+              <div class="lock-sub">当前账户为一般用户，无权访问此页面</div>
+            </div>
+          </div>
+        </div>
       </div>
     </main>
   </div>
@@ -92,11 +115,18 @@ const isMobile = ref(false)
 const sidebarCollapsed = ref(true) // 移动端默认收起
 
 const menuItems = [
-  { path: '/admin', title: '仪表盘', icon: '📊' },
-  { path: '/admin/groups', title: '分组管理', icon: '📁' },
-  { path: '/admin/performance', title: '系统监控', icon: '📈' },
-  { path: '/admin/config', title: '系统配置', icon: '⚙️' },
+  { path: '/admin', title: '仪表盘', icon: '📊', requireRoot: false },
+  { path: '/admin/groups', title: '分组管理', icon: '📁', requireRoot: false },
+  { path: '/admin/performance', title: '系统监控', icon: '📈', requireRoot: true },
+  { path: '/admin/config', title: '系统配置', icon: '⚙️', requireRoot: true },
 ]
+
+// 当前页面是否被锁定（admin 访问受限页面时为 true，root 永远 false）
+const isPageLocked = computed(() => {
+  if (authStore.isSuperAdmin) return false
+  const item = menuItems.find(i => route.path === i.path || route.path.startsWith(i.path + '/'))
+  return item ? !authStore.canAccessPage(item.path) : false
+})
 
 const currentPageTitle = computed(() => {
   const item = menuItems.find(i => route.path.startsWith(i.path))
@@ -300,6 +330,29 @@ onUnmounted(() => {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
+/* 受限（灰显）菜单项 */
+.nav-item-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  position: relative;
+}
+
+.nav-item-disabled:hover {
+  background: transparent;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.nav-lock {
+  font-size: 12px;
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+
+/* 收起状态下隐藏锁标 */
+.sidebar-collapsed .nav-lock {
+  display: none;
+}
+
 .nav-icon {
   font-size: 24px;
   width: 28px;
@@ -410,6 +463,63 @@ onUnmounted(() => {
   padding: 24px;
   max-width: 1400px;
   width: 100%;
+}
+
+/* 内容包裹层（用于承载遮罩定位） */
+.content-wrapper {
+  position: relative;
+}
+
+/* 权限不足页面遮罩 */
+.page-lock-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(245, 247, 250, 0.85);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  border-radius: 8px;
+  animation: lock-fade-in 0.25s ease;
+}
+
+@keyframes lock-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.lock-card {
+  text-align: center;
+  padding: 32px 40px;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+  max-width: 360px;
+}
+
+.lock-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+  opacity: 0.8;
+}
+
+.lock-title {
+  font-size: 1.3em;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.lock-desc {
+  color: #666;
+  font-size: 0.95em;
+  margin-bottom: 4px;
+}
+
+.lock-sub {
+  color: #999;
+  font-size: 0.85em;
 }
 
 /* 过渡动画 */

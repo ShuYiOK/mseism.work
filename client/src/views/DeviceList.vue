@@ -1,26 +1,6 @@
 <template>
   <div class="device-page">
-    <!-- 标题栏和控制按钮 -->
-    <div class="title-container">
-      <h1 aria-label="设备列表页面">设备列表</h1>
-      <div class="button-group" aria-label="控制按钮">
-        <router-link to="/admin/auth" class="manage-btn" aria-label="管理后台" tabindex="0">⚙</router-link>
-        <button 
-          class="view-toggle-btn" 
-          @click="toggleViewMode" 
-          :aria-label="viewModeLabel"
-        >
-          {{ viewModeIcon }}
-        </button>
-        <button 
-          class="refresh-btn" 
-          @click="fetchDevices"
-          aria-label="刷新设备列表"
-        >↻</button>
-      </div>
-    </div>
-
-    <!-- 统计卡片 + 分组标签（同一行） -->
+    <!-- 统计卡片 + 分组标签 + 控制按钮（同一行） -->
     <div v-show="viewMode !== 'map'" class="stats-row" aria-label="设备状态统计">
       <StatCard
         :value="stats.total"
@@ -60,6 +40,22 @@
       >
         <h3>{{ getGroupDeviceCount(group.id) }}</h3>
         <p>{{ group.name }}</p>
+      </div>
+      <!-- 控制按钮 -->
+      <div class="action-group" aria-label="控制按钮">
+        <router-link to="/admin/auth" class="action-btn" aria-label="管理后台" tabindex="0">⚙</router-link>
+        <button
+          class="action-btn"
+          @click="toggleViewMode"
+          :aria-label="viewModeLabel"
+        >
+          {{ viewModeIcon }}
+        </button>
+        <button
+          class="action-btn"
+          @click="fetchDevices"
+          aria-label="刷新设备列表"
+        >↻</button>
       </div>
     </div>
 
@@ -687,16 +683,6 @@ onUnmounted(() => {
   background: var(--bg-primary);
 }
 
-.title-container {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 20px;
-  margin-bottom: 30px;
-  flex-wrap: wrap;
-  padding: 0 20px;
-}
-
 h1 {
   color: white;
   text-align: center;
@@ -704,38 +690,52 @@ h1 {
   text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
 }
 
-.manage-btn {
-  padding: 12px;
-  background: rgba(255, 255,255,0.95);
+.stats-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 30px;
+  flex-wrap: wrap;
+  padding: 0 20px;
+}
+
+/* 控制按钮组 - 放在分组按钮行的末尾，规格小于分组卡片 */
+.action-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* 统一的控制按钮样式（管理 / 视图切换 / 刷新） */
+.action-btn {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.95);
   color: var(--primary-color);
   text-decoration: none;
-  border-radius: 30px;
-  font-size: 1.2em;
+  border: 1px solid rgba(102, 126, 234, 0.15);
+  border-radius: 18px;
+  font-size: 1em;
   font-weight: bold;
-  transition: all 0.3s ease;
-  min-width: 44px;
-  min-height: 44px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  transition: all 0.25s ease;
   display: flex;
   align-items: center;
   justify-content: center;
   touch-action: manipulation;
   -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
-  box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-  border: 3px solid transparent;
 }
 
-.manage-btn:hover {
-  transform: translateY(-2px) scale(1.05);
-  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.stats-row {
-  display: flex;
-  justify-content: center;
-  gap: 20px;
-  margin-bottom: 30px;
-  flex-wrap: wrap;
+.action-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
+  border-color: var(--primary-color);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* 分组统计卡片 - 与StatCard样式统一 */
@@ -796,12 +796,6 @@ h1 {
   margin-bottom: 30px;
 }
 
-.button-group {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
 .filter-sort-container {
   display: flex;
   justify-content: center;
@@ -856,49 +850,6 @@ h1 {
   outline: none;
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(0,0,0,0.3);
-}
-
-.view-toggle-btn, .refresh-btn, .performance-btn, .config-btn {
-  padding: 12px 20px;
-  background: rgba(255,255,255,0.95);
-  color: var(--primary-color);
-  border: 3px solid transparent;
-  border-radius: 30px;
-  font-size: 1.2em;
-  font-weight: bold;
-  cursor: pointer;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-  transition: all 0.3s ease;
-  text-decoration: none;
-  display: inline-block;
-  min-width: 60px;
-  min-height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
-}
-
-.view-toggle-btn:hover, .refresh-btn:hover, .performance-btn:hover, .config-btn:hover {
-  transform: translateY(-2px) scale(1.05);
-  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.view-toggle-btn {
-  background: #4caf50;
-  color: white;
-  border-color: #4caf50;
-}
-
-.refresh-btn {
-  background: white;
-}
-
-.performance-btn {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
 }
 
 /* 设备卡片容器 */
@@ -1128,16 +1079,6 @@ h1 {
     font-size: 1.1em;
   }
 
-  .title-container {
-    flex-direction: column;
-    gap: 15px;
-  }
-
-  .manage-btn {
-    padding: 10px 20px;
-    font-size: 0.9em;
-  }
-
   .stats-row {
     gap: 15px;
   }
@@ -1160,14 +1101,10 @@ h1 {
     font-size: 1.3em;
   }
 
-  .button-group {
-    flex-wrap: wrap;
-    gap: 12px;
-  }
-
-  .view-toggle-btn, .refresh-btn, .manage-btn {
-    min-width: 44px;
-    padding: 12px;
+  .action-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 0.9em;
   }
 
   .filter-sort-container {
@@ -1232,16 +1169,6 @@ h1 {
     font-size: 1em;
   }
 
-  .title-container {
-    flex-direction: column;
-    gap: 10px;
-  }
-
-  .manage-btn {
-    padding: 8px 16px;
-    font-size: 0.85em;
-  }
-
   .stats-row {
     gap: 10px;
   }
@@ -1260,16 +1187,10 @@ h1 {
     font-size: 0.8em;
   }
 
-  .button-group {
-    gap: 10px;
-    flex-wrap: wrap;
-  }
-
-  .view-toggle-btn, .refresh-btn, .manage-btn {
-    padding: 8px;
+  .action-btn {
+    width: 30px;
+    height: 30px;
     font-size: 0.85em;
-    border-radius: 20px;
-    min-width: 44px;
   }
 
   .device-card {
@@ -1364,7 +1285,7 @@ h1 {
   }
 
   /* 移动端触摸优化 */
-  .stat-card, .group-stat-card, .view-btn, .refresh-btn, .manage-btn, .device-card {
+  .stat-card, .group-stat-card, .action-btn, .device-card {
     touch-action: manipulation;
     -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
     -webkit-touch-callout: none;
@@ -1375,9 +1296,7 @@ h1 {
   /* 触摸反馈效果 */
   .stat-card:active,
   .group-stat-card:active,
-  .view-toggle-btn:active,
-  .refresh-btn:active,
-  .manage-btn:active,
+  .action-btn:active,
   .device-card:active {
     transform: scale(0.95);
     transition: transform 0.1s ease;
@@ -1388,11 +1307,7 @@ h1 {
   @media (max-width: 768px) {
     .stat-card,
     .group-stat-card,
-    .view-toggle-btn,
-    .refresh-btn,
-    .manage-btn {
-      min-height: 44px;
-      min-width: 44px;
+    .action-btn {
       display: flex;
       align-items: center;
       justify-content: center;
@@ -1444,10 +1359,10 @@ h1 {
     font-size: 0.85em;
   }
 
-  .view-toggle-btn, .refresh-btn, .manage-btn {
-    padding: 6px;
+  .action-btn {
+    width: 28px;
+    height: 28px;
     font-size: 0.8em;
-    min-width: 44px;
   }
 
   .device-card {

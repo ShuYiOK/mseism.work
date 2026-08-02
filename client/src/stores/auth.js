@@ -15,17 +15,35 @@ export const useAuthStore = defineStore('auth', () => {
 
   // 计算属性
   const isAuthenticated = computed(() => !!user.value && !!accessToken.value)
-  
-  const isAdmin = computed(() => user.value?.role === 'admin')
-  
+
+  // 是否为超级管理员（root，最高权限）
+  const isSuperAdmin = computed(() => user.value?.role === 'root')
+
+  // 是否可进入后台（root 或 admin）
+  const isAdmin = computed(() => user.value?.role === 'root' || user.value?.role === 'admin')
+
   const permissions = computed(() => user.value?.permissions || [])
-  
+
   const hasPermission = computed(() => {
     return (permission) => permissions.value.includes(permission)
   })
 
   const hasRole = computed(() => {
     return (role) => user.value?.role === role
+  })
+
+  // 判断当前用户能否访问指定后台页面
+  // root 可访问全部；admin 仅可访问仪表盘与分组管理
+  const canAccessPage = computed(() => {
+    return (path) => {
+      if (!user.value) return false
+      if (user.value.role === 'root') return true
+      if (user.value.role === 'admin') {
+        // /admin（仪表盘）与 /admin/groups（分组管理）允许
+        return path === '/admin' || path === '/admin/groups'
+      }
+      return false
+    }
   })
 
   // 初始化：从localStorage恢复认证信息
@@ -354,10 +372,12 @@ export const useAuthStore = defineStore('auth', () => {
     error,
     // 计算属性
     isAuthenticated,
+    isSuperAdmin,
     isAdmin,
     permissions,
     hasPermission,
     hasRole,
+    canAccessPage,
     // 方法
     initializeAuth,
     clearAuth,

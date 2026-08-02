@@ -60,6 +60,20 @@ function requireAdmin(req, res, next) {
 }
 
 /**
+ * 验证超级管理员（root）权限
+ * 仅 root 角色可访问系统级功能（系统配置、用户管理、删除设备等）
+ * @param {Object} req 请求对象
+ * @param {Object} res 响应对象
+ * @param {Function} next 下一个中间件
+ */
+function requireSuperAdmin(req, res, next) {
+  if (!req.user || req.user.role !== 'root') {
+    return res.status(403).json(createErrorResponse(ErrorCodes.AUTH.PERMISSION_DENIED));
+  }
+  next();
+}
+
+/**
  * 验证特定权限
  * @param {string} permission 所需权限
  * @returns {Function} 中间件函数
@@ -89,7 +103,7 @@ function requireOwner(ownerField = 'userId') {
       return res.status(401).json(createErrorResponse(ErrorCodes.AUTH.TOKEN_MISSING));
     }
 
-    if (req.user.role === 'admin') {
+    if (req.user.role === 'root' || req.user.role === 'admin') {
       return next();
     }
 
@@ -106,6 +120,7 @@ function requireOwner(ownerField = 'userId') {
 module.exports = {
   authenticateToken,
   requireAdmin,
+  requireSuperAdmin,
   requirePermission,
   requireOwner
 };

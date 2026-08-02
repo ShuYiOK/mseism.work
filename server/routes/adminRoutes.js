@@ -7,7 +7,7 @@ const express = require('express');
 const router = express.Router();
 const pluginManager = require('../utils/pluginManager');
 const configManager = require('../utils/configManager');
-const { authenticateToken, requireAdmin } = require('../middlewares/authMiddleware');
+const { authenticateToken, requireSuperAdmin } = require('../middlewares/authMiddleware');
 
 // 插件管理 API
 
@@ -18,7 +18,7 @@ const { authenticateToken, requireAdmin } = require('../middlewares/authMiddlewa
  * @security Bearer
  * @returns {Array} 200 - 插件列表
  */
-router.get('/plugins', authenticateToken, requireAdmin, async (req, res) => {
+router.get('/plugins', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
     const plugins = pluginManager.getPlugins();
     res.json({ success: true, data: plugins });
@@ -35,7 +35,7 @@ router.get('/plugins', authenticateToken, requireAdmin, async (req, res) => {
  * @param {string} pluginPath.query 插件路径
  * @returns {Object} 200 - 加载结果
  */
-router.post('/plugins/load', authenticateToken, requireAdmin, async (req, res) => {
+router.post('/plugins/load', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
     const { pluginPath } = req.query;
     if (!pluginPath) {
@@ -56,7 +56,7 @@ router.post('/plugins/load', authenticateToken, requireAdmin, async (req, res) =
  * @param {string} pluginName.query 插件名称
  * @returns {Object} 200 - 卸载结果
  */
-router.post('/plugins/unload', authenticateToken, requireAdmin, async (req, res) => {
+router.post('/plugins/unload', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
     const { pluginName } = req.query;
     if (!pluginName) {
@@ -77,7 +77,7 @@ router.post('/plugins/unload', authenticateToken, requireAdmin, async (req, res)
  * @param {string} pluginName.query 插件名称
  * @returns {Object} 200 - 加载结果
  */
-router.post('/plugins/reload', authenticateToken, requireAdmin, async (req, res) => {
+router.post('/plugins/reload', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
     const { pluginName } = req.query;
     if (!pluginName) {
@@ -98,7 +98,7 @@ router.post('/plugins/reload', authenticateToken, requireAdmin, async (req, res)
  * @param {string} pluginsDir.query 插件目录
  * @returns {Array} 200 - 加载结果
  */
-router.post('/plugins/load-dir', authenticateToken, requireAdmin, async (req, res) => {
+router.post('/plugins/load-dir', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
     const { pluginsDir } = req.query;
     if (!pluginsDir) {
@@ -121,7 +121,7 @@ router.post('/plugins/load-dir', authenticateToken, requireAdmin, async (req, re
  * @param {string} key.query 配置键
  * @returns {Object} 200 - 配置值
  */
-router.get('/config', authenticateToken, requireAdmin, async (req, res) => {
+router.get('/config', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
     const { key } = req.query;
     const value = configManager.get(key);
@@ -140,7 +140,7 @@ router.get('/config', authenticateToken, requireAdmin, async (req, res) => {
  * @param {*} value.body 配置值
  * @returns {Object} 200 - 设置结果
  */
-router.post('/config', authenticateToken, requireAdmin, async (req, res) => {
+router.post('/config', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
     const { key } = req.query;
     const { value } = req.body;
@@ -161,7 +161,7 @@ router.post('/config', authenticateToken, requireAdmin, async (req, res) => {
  * @security Bearer
  * @returns {Object} 200 - 重置结果
  */
-router.post('/config/reset', authenticateToken, requireAdmin, async (req, res) => {
+router.post('/config/reset', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
     const result = configManager.resetConfig();
     res.json({ success: result, message: result ? '配置重置成功' : '配置重置失败' });
@@ -178,7 +178,7 @@ router.post('/config/reset', authenticateToken, requireAdmin, async (req, res) =
  * @param {Object} config.body 配置对象
  * @returns {Object} 200 - 验证结果
  */
-router.post('/config/validate', authenticateToken, requireAdmin, async (req, res) => {
+router.post('/config/validate', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
     const { config } = req.body;
     const result = configManager.validateConfig(config);

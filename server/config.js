@@ -47,6 +47,9 @@ const configSchema = Joi.object({
   
   // 初始管理员密码（仅在首次创建管理员时使用）
   INITIAL_ADMIN_PASSWORD: Joi.string().min(8).default('admin123'),
+
+  // 初始超级管理员（root）密码（仅在首次创建 root 时使用）
+  INITIAL_ROOT_PASSWORD: Joi.string().min(8).default('root123'),
   
   // 安全配置
   MAX_LOGIN_ATTEMPTS: Joi.number().integer().min(1).default(5),

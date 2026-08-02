@@ -163,7 +163,8 @@ import { useAuthStore } from '../stores/auth'
 import api from '../api'
 
 const authStore = useAuthStore()
-const isAdmin = computed(() => authStore.isAdmin)
+// 系统配置仅 root（超级管理员）可编辑
+const isAdmin = computed(() => authStore.isSuperAdmin)
 
 // 状态管理
 const configData = ref({})

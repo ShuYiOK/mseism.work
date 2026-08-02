@@ -10,7 +10,7 @@ const deviceService = require('../services/deviceService');
 const { batchProcessor, QueryOptimizer } = require('../modules/batchProcessor');
 const { performanceOptimizer } = require('../modules/performanceOptimizer');
 const { apiRateLimit } = require('../middlewares/rateLimitMiddleware');
-const { authenticateToken, requireAdmin } = require('../middlewares/authMiddleware');
+const { authenticateToken, requireSuperAdmin } = require('../middlewares/authMiddleware');
 const { deviceSchemas, validateBody, validateQuery } = require('../utils/validators');
 const { ErrorCodes, createErrorResponse } = require('../utils/errorCodes');
 const { asyncHandler } = require('../middlewares/errorHandler');
@@ -143,7 +143,7 @@ router.get('/:id', apiRateLimit(), asyncHandler(async (req, res) => {
 }));
 
 // 删除设备（破坏性操作，需要管理员权限）
-router.delete('/:id', authenticateToken, requireAdmin, apiRateLimit(), asyncHandler(async (req, res) => {
+router.delete('/:id', authenticateToken, requireSuperAdmin, apiRateLimit(), asyncHandler(async (req, res) => {
   await deviceService.deleteDevice(req.params.id);
   res.json({ success: true, message: '设备删除成功' });
 }));

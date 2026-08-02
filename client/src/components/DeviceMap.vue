@@ -18,6 +18,26 @@ const mapContainer = ref(null)
 let map = null
 let markersGroup = null
 let markerMap = {}
+let layerControl = null
+let idToggleBtn = null
+
+// 是否显示设备ID标签（默认隐藏，减少视觉干扰）
+const showDeviceIds = ref(false)
+
+const toggleDeviceIds = () => {
+  showDeviceIds.value = !showDeviceIds.value
+  applyLabelVisibility()
+}
+
+const applyLabelVisibility = () => {
+  if (mapContainer.value) {
+    mapContainer.value.classList.toggle('show-device-labels', showDeviceIds.value)
+  }
+  if (idToggleBtn) {
+    idToggleBtn.classList.toggle('active', showDeviceIds.value)
+    idToggleBtn.title = showDeviceIds.value ? '隐藏设备ID' : '显示设备ID'
+  }
+}
 
 const PI = Math.PI
 const a = 6378245.0
@@ -90,11 +110,54 @@ const initMap = () => {
     maxZoom: 18
   })
 
-  L.tileLayer('https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', {
+  // 高德标准地图（矢量）
+  const standardLayer = L.tileLayer('https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', {
     subdomains: ['1', '2', '3', '4'],
     maxZoom: 18,
     attribution: '&copy; 高德地图'
   }).addTo(map)
+
+  // 高德卫星图层（影像），叠加路网标注以便识别道路
+  const satelliteImgLayer = L.tileLayer('https://webst0{s}.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}', {
+    subdomains: ['1', '2', '3', '4'],
+    maxZoom: 18,
+    attribution: '&copy; 高德地图'
+  })
+  const roadLabelLayer = L.tileLayer('https://webst0{s}.is.autonavi.com/appmaptile?style=8&x={x}&y={y}&z={z}', {
+    subdomains: ['1', '2', '3', '4'],
+    maxZoom: 18,
+    attribution: '&copy; 高德地图'
+  })
+  const satelliteLayer = L.layerGroup([satelliteImgLayer, roadLabelLayer])
+
+  layerControl = L.control.layers({
+    '标准地图': standardLayer,
+    '卫星图层': satelliteLayer
+  }, null, { position: 'topright', collapsed: true }).addTo(map)
+
+  // 设备ID 显示/隐藏 切换按钮（与图层控件同位置、同样式）
+  const IdToggleControl = L.Control.extend({
+    options: { position: 'topright' },
+    onAdd: () => {
+      const btn = L.DomUtil.create('button', 'leaflet-control-id-toggle')
+      btn.type = 'button'
+      btn.title = '显示设备ID'
+      btn.innerHTML = '<span class="id-toggle-icon">ID</span>'
+      L.DomEvent.on(btn, 'click', L.DomEvent.stop)
+      L.DomEvent.on(btn, 'click', toggleDeviceIds)
+      L.DomEvent.disableClickPropagation(btn)
+      L.DomEvent.disableScrollPropagation(btn)
+      idToggleBtn = btn
+      return btn
+    },
+    onRemove: () => {
+      if (idToggleBtn) {
+        L.DomEvent.off(idToggleBtn, 'click', toggleDeviceIds)
+        idToggleBtn = null
+      }
+    }
+  })
+  map.addControl(new IdToggleControl())
 
   markersGroup = L.featureGroup().addTo(map)
 
@@ -102,6 +165,7 @@ const initMap = () => {
     if (map) {
       map.invalidateSize({ animate: false })
     }
+    applyLabelVisibility()
     updateMarkers()
   }, 200)
 }
@@ -158,6 +222,15 @@ const updateMarkers = () => {
         icon: device.online ? iconOnline : iconOffline
       })
       marker.bindPopup(buildPopupContent(device), { maxWidth: 280 })
+      // 永久显示的设备ID标签（默认通过 CSS 隐藏，由按钮控制显隐）
+      const labelName = escapeHtml(device.device || device.id)
+      marker.bindTooltip(labelName, {
+        permanent: true,
+        direction: 'right',
+        offset: [8, 0],
+        className: 'device-id-label',
+        interactive: false
+      })
       markersGroup.addLayer(marker)
       markerMap[device.id] = marker
     }
@@ -193,6 +266,8 @@ onUnmounted(() => {
     markersGroup.clearLayers()
     markersGroup = null
   }
+  layerControl = null
+  idToggleBtn = null
   if (map) {
     map.remove()
     map = null
@@ -236,6 +311,104 @@ defineExpose({ invalidateSize: () => map?.invalidateSize() })
 
 .leaflet-popup-content {
   margin: 12px 16px;
+}
+
+/* 图层切换控件：简约小按钮 */
+.leaflet-control-layers {
+  border: none !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15) !important;
+  border-radius: 6px !important;
+  padding: 0 !important;
+  background: rgba(255, 255, 255, 0.9) !important;
+  backdrop-filter: blur(4px);
+}
+
+.leaflet-control-layers-toggle {
+  width: 28px !important;
+  height: 28px !important;
+  background-size: 16px 16px !important;
+}
+
+.leaflet-control-layers-expanded {
+  padding: 6px 10px !important;
+}
+
+.leaflet-control-layers-list {
+  font-size: 12px;
+}
+
+.leaflet-control-layers label {
+  margin: 2px 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+}
+
+.leaflet-control-layers-selector {
+  margin: 0 !important;
+  width: 12px;
+  height: 12px;
+  cursor: pointer;
+}
+
+/* 设备ID 显示/隐藏 按钮：与图层控件样式统一 */
+.leaflet-control-id-toggle {
+  width: 28px;
+  height: 28px;
+  margin-top: 6px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(4px);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+
+.leaflet-control-id-toggle:hover {
+  background: rgba(255, 255, 255, 1);
+}
+
+.leaflet-control-id-toggle .id-toggle-icon {
+  font-size: 11px;
+  font-weight: 700;
+  color: #667eea;
+  letter-spacing: 0.5px;
+}
+
+/* 激活态：底色与文字高亮，提示当前正在显示 */
+.leaflet-control-id-toggle.active {
+  background: #667eea;
+}
+
+.leaflet-control-id-toggle.active .id-toggle-icon {
+  color: #fff;
+}
+
+/* 设备ID标签：默认隐藏，由按钮控制显隐 */
+.device-id-label {
+  background: rgba(255, 255, 255, 0.85);
+  border: none;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #333;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+
+/* 仅在容器带有 show-device-labels 时显示 */
+.show-device-labels .device-id-label {
+  opacity: 1;
 }
 </style>
 

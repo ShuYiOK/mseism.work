@@ -7,25 +7,25 @@ const express = require('express');
 const router = express.Router();
 const configService = require('../services/configService');
 const { apiRateLimit } = require('../middlewares/rateLimitMiddleware');
-const { authenticateToken, requireAdmin } = require('../middlewares/authMiddleware');
+const { authenticateToken, requireSuperAdmin } = require('../middlewares/authMiddleware');
 const { asyncHandler } = require('../middlewares/errorHandler');
 const fs = require('fs');
 const path = require('path');
 
 // 获取配置
-router.get('/', apiRateLimit(), authenticateToken, requireAdmin, asyncHandler(async (req, res) => {
+router.get('/', apiRateLimit(), authenticateToken, requireSuperAdmin, asyncHandler(async (req, res) => {
   const config = configService.getConfig();
   res.json({ success: true, data: config });
 }));
 
 // 重新加载配置
-router.post('/reload', apiRateLimit(), authenticateToken, requireAdmin, asyncHandler(async (req, res) => {
+router.post('/reload', apiRateLimit(), authenticateToken, requireSuperAdmin, asyncHandler(async (req, res) => {
   const result = configService.reloadConfig();
   res.json(result);
 }));
 
 // 验证配置
-router.post('/validate', apiRateLimit(), authenticateToken, requireAdmin, asyncHandler(async (req, res) => {
+router.post('/validate', apiRateLimit(), authenticateToken, requireSuperAdmin, asyncHandler(async (req, res) => {
   const { config } = req.body;
   if (!config) {
     return res.status(400).json({ success: false, error: '配置对象不能为空' });
@@ -35,7 +35,7 @@ router.post('/validate', apiRateLimit(), authenticateToken, requireAdmin, asyncH
 }));
 
 // 获取 .env 文件内容
-router.get('/env-file/content', apiRateLimit(), authenticateToken, requireAdmin, asyncHandler(async (req, res) => {
+router.get('/env-file/content', apiRateLimit(), authenticateToken, requireSuperAdmin, asyncHandler(async (req, res) => {
   try {
     const envPath = path.join(__dirname, '../.env');
     if (fs.existsSync(envPath)) {
@@ -50,7 +50,7 @@ router.get('/env-file/content', apiRateLimit(), authenticateToken, requireAdmin,
 }));
 
 // 更新 .env 文件
-router.post('/env-file/update', apiRateLimit(), authenticateToken, requireAdmin, asyncHandler(async (req, res) => {
+router.post('/env-file/update', apiRateLimit(), authenticateToken, requireSuperAdmin, asyncHandler(async (req, res) => {
   try {
     const updates = req.body;
     const envPath = path.join(__dirname, '../.env');
@@ -83,7 +83,7 @@ router.post('/env-file/update', apiRateLimit(), authenticateToken, requireAdmin,
 }));
 
 // 获取示例配置
-router.get('/example', apiRateLimit(), authenticateToken, requireAdmin, asyncHandler(async (req, res) => {
+router.get('/example', apiRateLimit(), authenticateToken, requireSuperAdmin, asyncHandler(async (req, res) => {
   try {
     const exampleContent = `# 服务器配置
 PORT=3001
