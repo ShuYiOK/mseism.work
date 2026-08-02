@@ -190,11 +190,11 @@ const calculateHealthScore = (devices) => {
       penalties.push({ type: 'storage_warning', penalty: 10 })
     }
     
-    // 高延迟扣分
-    if (d.cpu_usage > 500) {
+    // 高延迟扣分（delay 才是延迟字段，单位 ms；cpu_usage 是 CPU 百分比 0-100）
+    if (d.delay > 500) {
       score -= 15
       penalties.push({ type: 'high_latency', penalty: 15 })
-    } else if (d.cpu_usage > 200) {
+    } else if (d.delay > 200) {
       score -= 5
       penalties.push({ type: 'moderate_latency', penalty: 5 })
     }
@@ -245,11 +245,11 @@ const detectAnomalies = (devices, thresholds = {}) => {
       })
     }
     
-    if (d.cpu_usage > config.maxLatency) {
-      deviceAnomalies.push({ 
-        type: 'high_latency', 
+    if (d.delay > config.maxLatency) {
+      deviceAnomalies.push({
+        type: 'high_latency',
         severity: 'warning',
-        value: d.cpu_usage,
+        value: d.delay,
         threshold: config.maxLatency
       })
     }

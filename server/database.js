@@ -260,6 +260,27 @@ async function close() {
   }
 }
 
+// 安全创建索引：MySQL 不支持 CREATE INDEX IF NOT EXISTS（8.0.29 之前），
+// 且批量 CREATE INDEX 中任一已存在会导致后续全部中断。
+// 改为逐个检查 information_schema 后按需创建。
+async function createIndexIfNotExists(tableName, indexName, indexDef) {
+  try {
+    const rows = await query(
+      `SELECT 1 FROM information_schema.statistics
+       WHERE table_schema = DATABASE() AND table_name = ? AND index_name = ? LIMIT 1`,
+      [tableName, indexName]
+    );
+    if (rows.length > 0) {
+      return false; // 已存在
+    }
+    await query(`CREATE INDEX ${indexName} ON ${indexDef}`);
+    return true;
+  } catch (error) {
+    console.warn(`[索引] 创建 ${indexName} 失败（忽略）: ${error.message}`);
+    return false;
+  }
+}
+
 // 计算设备数据哈希
 function calculateDeviceHash(device) {
   // 确保 online 字段使用数字类型进行哈希计算
@@ -286,9 +307,9 @@ async function migrateDatabase() {
     if (!hasSyncHash) {
       console.log('[迁移] 添加 sync_hash 字段到 devices 表...');
       await query('ALTER TABLE devices ADD COLUMN sync_hash VARCHAR(32)');
-      
-      // 创建索引
-      await query('CREATE INDEX IF NOT EXISTS idx_devices_hash ON devices(sync_hash)');
+
+      // 创建索引（兼容所有 MySQL 版本）
+      await createIndexIfNotExists('devices', 'idx_devices_hash', 'devices(sync_hash)');
       
       // 为现有设备计算哈希
       const devices = await query('SELECT * FROM devices');
@@ -403,33 +424,28 @@ async function initDatabase() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
 
-    // 创建索引
-    try {
-      await query(`CREATE INDEX idx_devices_status ON devices(status)`);
-      await query(`CREATE INDEX idx_devices_online ON devices(online)`);
-      await query(`CREATE INDEX idx_devices_online_status ON devices(online, status)`);
-      await query(`CREATE INDEX idx_devices_last_heartbeat ON devices(last_heartbeat)`);
-      await query(`CREATE INDEX idx_devices_hash ON devices(sync_hash)`);
-      await query(`CREATE INDEX idx_mapping_device ON device_group_mapping(device_id)`);
-      await query(`CREATE INDEX idx_mapping_group ON device_group_mapping(group_id)`);
-      await query(`CREATE INDEX idx_mapping_group_device ON device_group_mapping(group_id, device_id)`);
-      await query(`CREATE INDEX idx_groups_sort ON device_groups(sort_order, name)`);
-      // 状态日志表索引
-      await query(`CREATE INDEX idx_status_logs_device ON device_status_logs(device_id)`);
-      await query(`CREATE INDEX idx_status_logs_timestamp ON device_status_logs(timestamp)`);
-      await query(`CREATE INDEX idx_status_logs_device_time ON device_status_logs(device_id, timestamp)`);
-      // 坐标日志表索引
-      await query(`CREATE INDEX idx_coordinate_logs_device ON device_coordinate_logs(device_id)`);
-      await query(`CREATE INDEX idx_coordinate_logs_timestamp ON device_coordinate_logs(timestamp)`);
-      await query(`CREATE INDEX idx_coordinate_logs_device_time ON device_coordinate_logs(device_id, timestamp)`);
-      // 异常记录表索引
-      await query(`CREATE INDEX idx_anomalies_device ON device_anomalies(device_id)`);
-      await query(`CREATE INDEX idx_anomalies_type ON device_anomalies(anomaly_type)`);
-      await query(`CREATE INDEX idx_anomalies_occurrence ON device_anomalies(last_occurrence)`);
-    } catch (error) {
-      // 忽略索引创建失败（索引可能已存在）
-      console.warn('[警告] 无法创建索引:', error.message);
-    }
+    // 创建索引（逐个安全创建，避免已存在索引中断后续创建）
+    await createIndexIfNotExists('devices', 'idx_devices_status', 'devices(status)');
+    await createIndexIfNotExists('devices', 'idx_devices_online', 'devices(online)');
+    await createIndexIfNotExists('devices', 'idx_devices_online_status', 'devices(online, status)');
+    await createIndexIfNotExists('devices', 'idx_devices_last_heartbeat', 'devices(last_heartbeat)');
+    await createIndexIfNotExists('devices', 'idx_devices_hash', 'devices(sync_hash)');
+    await createIndexIfNotExists('device_group_mapping', 'idx_mapping_device', 'device_group_mapping(device_id)');
+    await createIndexIfNotExists('device_group_mapping', 'idx_mapping_group', 'device_group_mapping(group_id)');
+    await createIndexIfNotExists('device_group_mapping', 'idx_mapping_group_device', 'device_group_mapping(group_id, device_id)');
+    await createIndexIfNotExists('device_groups', 'idx_groups_sort', 'device_groups(sort_order, name)');
+    // 状态日志表索引
+    await createIndexIfNotExists('device_status_logs', 'idx_status_logs_device', 'device_status_logs(device_id)');
+    await createIndexIfNotExists('device_status_logs', 'idx_status_logs_timestamp', 'device_status_logs(timestamp)');
+    await createIndexIfNotExists('device_status_logs', 'idx_status_logs_device_time', 'device_status_logs(device_id, timestamp)');
+    // 坐标日志表索引
+    await createIndexIfNotExists('device_coordinate_logs', 'idx_coordinate_logs_device', 'device_coordinate_logs(device_id)');
+    await createIndexIfNotExists('device_coordinate_logs', 'idx_coordinate_logs_timestamp', 'device_coordinate_logs(timestamp)');
+    await createIndexIfNotExists('device_coordinate_logs', 'idx_coordinate_logs_device_time', 'device_coordinate_logs(device_id, timestamp)');
+    // 异常记录表索引
+    await createIndexIfNotExists('device_anomalies', 'idx_anomalies_device', 'device_anomalies(device_id)');
+    await createIndexIfNotExists('device_anomalies', 'idx_anomalies_type', 'device_anomalies(anomaly_type)');
+    await createIndexIfNotExists('device_anomalies', 'idx_anomalies_occurrence', 'device_anomalies(last_occurrence)');
 
     // 执行数据库迁移（添加 sync_hash 字段）
     await migrateDatabase();

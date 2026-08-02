@@ -12,7 +12,7 @@ const {
   validateType,
   validateRange,
   validateEnum
-} = require('../middlewares/errorHandler');
+} = require('../../middlewares/errorHandler');
 
 describe('错误类测试', () => {
   describe('AppError', () => {

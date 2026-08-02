@@ -56,9 +56,10 @@ class BatchProcessor {
   }
   
   async processRequest(req) {
+    // 在 try 外部解构，确保 catch 块也能访问 id（否则 ReferenceError 会掩盖真正错误）
+    const { type, params = {}, id } = req;
+
     try {
-      const { type, params = {}, id } = req;
-      
       // 检查缓存
       if (CONFIG.ENABLE_RESULT_CACHE) {
         const cached = this.getCachedResult(type, params);
@@ -66,70 +67,70 @@ class BatchProcessor {
           return { id, success: true, data: cached, cached: true };
         }
       }
-      
+
       let data;
-      
+
       switch (type) {
         case 'getDevices':
           data = await deviceService.getAllDevices();
           break;
-          
+
         case 'getDevice':
           if (!params.id) {
             throw new Error('缺少设备ID参数');
           }
           data = await deviceService.getDeviceById(params.id);
           break;
-          
+
         case 'getDeviceStats':
           data = await deviceService.getDeviceStats();
           break;
-          
+
         case 'getOnlineDevices':
           data = await deviceService.getOnlineDevices(params.limit);
           break;
-          
+
         case 'getOfflineDevices':
           data = await deviceService.getOfflineDevices(params.limit);
           break;
-          
+
         case 'getDevicesByStatus':
           if (!params.status) {
             throw new Error('缺少状态参数');
           }
           data = await deviceService.getDevicesByStatus(params.status, params.limit);
           break;
-          
+
         case 'getDevicesWithGroups':
           data = await deviceService.getAllDevicesWithGroups();
           break;
-          
+
         case 'getGroups':
           data = await groupService.getAllGroups();
           break;
-          
+
         case 'getGroup':
           if (!params.id) {
             throw new Error('缺少分组ID参数');
           }
           data = await groupService.getGroupById(params.id);
           break;
-          
+
         case 'getGroupsWithDevices':
-          data = await groupService.getGroupsWithDevices();
+          data = await groupService.getAllGroupsWithDevices();
           break;
-          
+
         default:
           throw new Error(`未知的请求类型: ${type}`);
       }
-      
+
       // 缓存结果
       if (CONFIG.ENABLE_RESULT_CACHE) {
         this.cacheResult(type, params, data);
       }
-      
+
       return { id, success: true, data, cached: false };
-      
+
     } catch (error) {
       return {
         id,

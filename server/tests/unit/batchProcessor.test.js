@@ -1,6 +1,22 @@
 /**
  * 批处理模块单元测试
  */
+// mock 掉服务层，避免依赖真实数据库
+jest.mock('../../services/deviceService', () => ({
+  getAllDevices: jest.fn().mockResolvedValue([{ id: 'd1' }]),
+  getDeviceById: jest.fn().mockResolvedValue({ id: 'd1' }),
+  getDeviceStats: jest.fn().mockResolvedValue({ total: 1 }),
+  getOnlineDevices: jest.fn().mockResolvedValue([]),
+  getOfflineDevices: jest.fn().mockResolvedValue([]),
+  getDevicesByStatus: jest.fn().mockResolvedValue([]),
+  getAllDevicesWithGroups: jest.fn().mockResolvedValue([]),
+}));
+jest.mock('../../services/groupService', () => ({
+  getAllGroups: jest.fn().mockResolvedValue([{ id: 'g1', name: '组1' }]),
+  getGroupById: jest.fn().mockResolvedValue({ id: 'g1' }),
+  getAllGroupsWithDevices: jest.fn().mockResolvedValue([]),
+}));
+
 const { BatchProcessor, QueryOptimizer } = require('../../modules/batchProcessor');
 
 describe('QueryOptimizer', () => {
