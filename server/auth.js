@@ -176,8 +176,8 @@ async function createDefaultAdmin() {
   
   if (!adminExists) {
     const adminId = crypto.randomUUID();
-    const passwordHash = bcrypt.hashSync(CONFIG.INITIAL_ADMIN_PASSWORD, CONFIG.BCRYPT_ROUNDS);
-    
+    const passwordHash = await bcrypt.hash(CONFIG.INITIAL_ADMIN_PASSWORD, CONFIG.BCRYPT_ROUNDS);
+
     await dbModule.query(`
       INSERT INTO users (id, username, password_hash, email, role, permissions, is_active, email_verified)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -240,7 +240,7 @@ async function register(username, email, password, role = Role.USER) {
   }
 
   // 加密密码
-  const passwordHash = bcrypt.hashSync(password, CONFIG.BCRYPT_ROUNDS);
+  const passwordHash = await bcrypt.hash(password, CONFIG.BCRYPT_ROUNDS);
   const userId = crypto.randomUUID();
 
   // 创建用户
@@ -542,7 +542,7 @@ async function changePassword(userId, oldPassword, newPassword, ip, userAgent) {
   }
 
   // 加密新密码
-  const newPasswordHash = bcrypt.hashSync(newPassword, CONFIG.BCRYPT_ROUNDS);
+  const newPasswordHash = await bcrypt.hash(newPassword, CONFIG.BCRYPT_ROUNDS);
 
   // 更新密码
   await dbModule.query(`
@@ -580,7 +580,7 @@ async function resetPassword(userId, newPassword) {
   }
 
   // 加密新密码
-  const newPasswordHash = bcrypt.hashSync(newPassword, CONFIG.BCRYPT_ROUNDS);
+  const newPasswordHash = await bcrypt.hash(newPassword, CONFIG.BCRYPT_ROUNDS);
 
   // 更新密码
   await dbModule.query(`
@@ -725,8 +725,16 @@ async function cleanupExpiredTokens() {
   console.log(`[认证系统] 已清理 ${result.affectedRows || 0} 个过期或撤销的token`);
 }
 
-// 定期清理过期的token
-setInterval(cleanupExpiredTokens, 24 * 60 * 60 * 1000); // 每天
+// 定期清理过期的token（保存句柄以便优雅关闭）
+const cleanupTimer = setInterval(cleanupExpiredTokens, 24 * 60 * 60 * 1000); // 每天
+cleanupTimer.unref(); // 不阻止进程正常退出
+
+// 停止定时清理任务（供优雅关闭调用）
+function stopCleanupTimer() {
+  if (cleanupTimer) {
+    clearInterval(cleanupTimer);
+  }
+}
 
 module.exports = {
   initUserDatabase,
@@ -753,5 +761,7 @@ module.exports = {
   hasRole,
   // 审计日志
   getAuditLogs,
-  cleanupExpiredTokens
+  cleanupExpiredTokens,
+  // 生命周期
+  stopCleanupTimer
 };

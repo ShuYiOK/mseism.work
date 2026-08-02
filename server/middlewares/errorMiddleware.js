@@ -1,55 +1,32 @@
 /**
- * 错误处理中间件
- * 统一处理错误响应格式
+ * 错误处理中间件（统一入口）
+ *
+ * 历史问题：本文件曾用字符串匹配（err.message.includes('权限')）判断状态码，
+ * 与中文错误消息强耦合且脆弱。middlewares/errorHandler.js 中已有基于
+ * err.statusCode / err.code 的规范实现，这里直接委托，保持引用路径不变。
+ *
+ * errorMiddleware 对外暴露：
+ *   - errorHandler:    统一错误处理（委托给 errorHandler.js 的规范版）
+ *   - notFoundHandler: 404 处理
  */
+
+const { errorHandler: standardErrorHandler, NotFoundError } = require('./errorHandler');
 
 /**
- * 错误处理中间件
- * @param {Error} err 错误对象
- * @param {Object} req 请求对象
- * @param {Object} res 响应对象
- * @param {Function} next 下一个中间件
+ * 统一错误处理中间件
+ * 委托给 errorHandler.js 的规范实现（基于 err.statusCode / err.code）。
+ * 对没有 statusCode 的原生错误（如数据库驱动抛出的 Error），按 500 处理。
  */
 function errorHandler(err, req, res, next) {
-  console.error('错误:', err);
-
-  // 统一错误响应格式
-  const errorResponse = {
-    success: false,
-    error: err.message || '服务器内部错误'
-  };
-
-  // 根据错误类型设置不同的状态码
-  if (err.name === 'ValidationError') {
-    return res.status(400).json(errorResponse);
-  }
-
-  if (err.message.includes('未提供认证')) {
-    return res.status(401).json(errorResponse);
-  }
-
-  if (err.message.includes('权限')) {
-    return res.status(403).json(errorResponse);
-  }
-
-  if (err.message.includes('不存在')) {
-    return res.status(404).json(errorResponse);
-  }
-
-  // 默认 500 服务器内部错误
-  res.status(500).json(errorResponse);
+  return standardErrorHandler(err, req, res, next);
 }
 
 /**
  * 404 处理中间件
- * @param {Object} req 请求对象
- * @param {Object} res 响应对象
- * @param {Function} next 下一个中间件
+ * 抛出 NotFoundError，交由 errorHandler 统一响应。
  */
 function notFoundHandler(req, res, next) {
-  const error = new Error(`请求的路径 ${req.originalUrl} 不存在`);
-  error.status = 404;
-  next(error);
+  next(new NotFoundError(`路径 ${req.originalUrl}`));
 }
 
 module.exports = {

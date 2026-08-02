@@ -24,9 +24,6 @@ const SecurityUtils = require('./utils/security');
 const pluginManager = require('./utils/pluginManager');
 const configManager = require('./utils/configManager');
 
-// 导入中间件
-const { generateCsrfToken, validateCsrfToken } = require('./middlewares/csrfMiddleware');
-
 // 导入路由
 const adminRoutes = require('./routes/adminRoutes');
 
@@ -109,12 +106,8 @@ console.log('[WS Manager] Socket.io 实例已设置');
 app.use(express.json());
 app.use(configureCors());
 app.use(securityHeaders);
-app.use(generateCsrfToken);
-
-// CSRF 验证（生产环境启用）
-if (process.env.NODE_ENV === 'production') {
-  app.use(validateCsrfToken);
-}
+// 注：本系统使用 JWT（通过 Authorization: Bearer header 传递），天然免疫 CSRF。
+// 原 csrfMiddleware 对所有请求直接放行 next()，形同虚设，已移除以避免误导。
 
 // 静态文件服务 - 提供前端构建后的文件
 app.use(express.static(path.join(__dirname, '../client/dist'), {
@@ -568,10 +561,10 @@ app.post('/api/performance/reset',
   res.json({ success: true, message: '性能监控已重置' });
 }));
 
-// ============== 日志查询 API ==============
+// ============== 日志查询 API（需登录） ==============
 
 // 获取操作日志
-app.get('/api/logs/operations', asyncHandler(async (req, res) => {
+app.get('/api/logs/operations', authenticateToken, asyncHandler(async (req, res) => {
   const options = {
     type: req.query.type,
     level: req.query.level,
@@ -579,37 +572,37 @@ app.get('/api/logs/operations', asyncHandler(async (req, res) => {
     limit: parseInt(req.query.limit) || 100,
     offset: parseInt(req.query.offset) || 0
   };
-  
+
   if (req.query.startTime) {
     options.startTime = new Date(req.query.startTime);
   }
-  
+
   if (req.query.endTime) {
     options.endTime = new Date(req.query.endTime);
   }
-  
+
   const result = queryLogs(options);
   res.json({ success: true, data: result });
 }));
 
 // 获取日志统计
-app.get('/api/logs/stats', asyncHandler(async (req, res) => {
+app.get('/api/logs/stats', authenticateToken, asyncHandler(async (req, res) => {
   const stats = getLogStats();
   res.json({ success: true, data: stats });
 }));
 
-// ============== WebSocket 统计 API ==============
+// ============== WebSocket 统计 API（需登录） ==============
 
 // 获取WebSocket连接统计
-app.get('/api/ws/stats', asyncHandler(async (req, res) => {
+app.get('/api/ws/stats', authenticateToken, asyncHandler(async (req, res) => {
   const stats = wsManager.getStats();
   res.json({ success: true, data: stats });
 }));
 
-// ============== 请求队列统计 API ==============
+// ============== 请求队列统计 API（需登录） ==============
 
 // 获取请求队列状态
-app.get('/api/queue/stats', asyncHandler(async (req, res) => {
+app.get('/api/queue/stats', authenticateToken, asyncHandler(async (req, res) => {
   const stats = requestQueue.getStatus();
   res.json({ success: true, data: stats });
 }));
@@ -631,6 +624,7 @@ process.on('SIGTERM', () => {
   console.log('收到 SIGTERM 信号，正在关闭...');
   stopScheduledTasks();
   require('./services/anomalyService').stopAnomalyDetection();
+  auth.stopCleanupTimer();
   server.close(async () => {
     await db.close();
     console.log('服务器已关闭');
@@ -642,6 +636,7 @@ process.on('SIGINT', () => {
   console.log('收到 SIGINT 信号，正在关闭...');
   stopScheduledTasks();
   require('./services/anomalyService').stopAnomalyDetection();
+  auth.stopCleanupTimer();
   server.close(async () => {
     await db.close();
     console.log('服务器已关闭');

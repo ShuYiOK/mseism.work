@@ -255,24 +255,29 @@ describe('Group Schemas', () => {
   });
 
   describe('addDevice', () => {
-    test('should accept valid device ID', () => {
+    test('should accept valid device ID (UUID string)', () => {
       const { error } = groupSchemas.addDevice.validate({
-        deviceId: 123
+        deviceId: '550e8400-e29b-41d4-a716-446655440000'
       });
       expect(error).toBeUndefined();
     });
 
-    test('should reject non-positive device ID', () => {
+    test('should accept simple string device ID', () => {
       const { error } = groupSchemas.addDevice.validate({
-        deviceId: 0
+        deviceId: 'device-001'
+      });
+      expect(error).toBeUndefined();
+    });
+
+    test('should reject empty device ID', () => {
+      const { error } = groupSchemas.addDevice.validate({
+        deviceId: ''
       });
       expect(error).toBeDefined();
     });
 
-    test('should reject non-integer device ID', () => {
-      const { error } = groupSchemas.addDevice.validate({
-        deviceId: 1.5
-      });
+    test('should reject missing device ID', () => {
+      const { error } = groupSchemas.addDevice.validate({});
       expect(error).toBeDefined();
     });
   });

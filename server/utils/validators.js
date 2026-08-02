@@ -192,21 +192,26 @@ const groupSchemas = {
   }),
 
   addDevice: Joi.object({
-    deviceId: Joi.number()
-      .integer()
-      .positive()
+    // 设备 ID 在数据库中为 VARCHAR(36)（UUID 字符串），不能用 number 校验
+    deviceId: Joi.string()
+      .min(1)
+      .max(64)
       .required()
       .messages({
+        'string.base': '设备 ID 必须是字符串',
+        'string.empty': '设备 ID 不能为空',
         'any.required': '设备 ID 不能为空'
       })
   }),
 
   removeDevice: Joi.object({
-    deviceId: Joi.number()
-      .integer()
-      .positive()
+    deviceId: Joi.string()
+      .min(1)
+      .max(64)
       .required()
       .messages({
+        'string.base': '设备 ID 必须是字符串',
+        'string.empty': '设备 ID 不能为空',
         'any.required': '设备 ID 不能为空'
       })
   })

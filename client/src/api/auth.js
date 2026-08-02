@@ -10,11 +10,11 @@ export const authApi = {
   // 登录
   login: (data) => api.post('/auth/login', data),
   
-  // 登出
-  logout: (refreshToken) => api.post('/auth/logout', { refreshToken }),
-  
-  // 刷新token
-  refreshToken: (refreshToken) => api.post('/auth/refresh', { refreshToken }),
+  // 登出（服务端读取 refresh_token，前端需对齐字段名）
+  logout: (refreshToken) => api.post('/auth/logout', { refresh_token: refreshToken }),
+
+  // 刷新token（服务端读取 refresh_token，前端需对齐字段名）
+  refreshToken: (refreshToken) => api.post('/auth/refresh', { refresh_token: refreshToken }),
   
   // 撤销所有token
   revokeAll: () => api.post('/auth/revoke-all', {}, { skipErrorNotification: true }),
