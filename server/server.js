@@ -42,8 +42,13 @@ const authRoutes = require('./routes/authRoutes');
 const configRoutes = require('./routes/configRoutes');
 const deviceRoutes = require('./routes/deviceRoutes');
 const groupRoutes = require('./routes/groupRoutes');
+const downloadRoutes = require('./routes/downloadRoutes');
 
 const { asyncHandler } = require('./middlewares/errorHandler');
+
+// 导入服务
+const changeRecordService = require('./services/changeRecordService');
+const cron = require('node-cron');
 
 // 访问日志中间件
 function accessLogger(req, res, next) {
@@ -234,6 +239,9 @@ app.use('/api/groups', groupRoutes);
 // ============== 设备异常监控 API ==============
 const anomalyRoutes = require('./routes/anomalyRoutes');
 app.use('/api/anomalies', anomalyRoutes);
+
+// ============== 记录下载 API（自定义分组变化记录） ==============
+app.use('/api/downloads', downloadRoutes);
 
 // ============== 管理相关 API ==============
 app.use('/api/admin', adminRoutes);
@@ -486,6 +494,7 @@ io.on('connection', (socket) => {
 // 定时任务引用
 let syncTimer;
 let statusCheckTimer;
+let dailyCheckTask;
 
 // 启动定时任务
 function startScheduledTasks() {
@@ -500,6 +509,31 @@ function startScheduledTasks() {
   syncTimer = setInterval(() => {
     syncDevicesFromApi();
   }, CONFIG.SYNC_INTERVAL);
+
+  // 每天定时检测自定义分组变化并生成记录下载
+  // 默认 0:05 执行（避开整点同步与瓦片流量高峰）；表达式可通过 .env 的 DOWNLOAD_CRON_EXPRESSION 调整
+  try {
+    const cronExpr = config.downloads.cronExpression;
+    if (cron.validate(cronExpr)) {
+      dailyCheckTask = cron.schedule(cronExpr, () => {
+        requestQueue.add(async () => {
+          await changeRecordService.runDailyChangeCheck(new Date());
+        });
+      });
+      console.log(`[定时任务] 每日变化记录检查已启用: ${cronExpr}`);
+    } else {
+      console.warn(`[定时任务] 变化记录 cron 表达式无效，已跳过: ${cronExpr}`);
+    }
+  } catch (e) {
+    console.error('[定时任务] 启用每日变化记录检查失败:', e.message);
+  }
+
+  // 启动 30s 后检查是否需要补跑（若今日尚未生成快照则补跑一次）
+  setTimeout(() => {
+    changeRecordService.runStartupBackfillIfNeeded().catch(err => {
+      console.error('[定时任务] 启动补跑失败:', err.message);
+    });
+  }, 30000);
 
   // 每分钟检查设备在线状态（超过阈值无更新则标记为离线）
   statusCheckTimer = setInterval(async () => {
@@ -535,6 +569,9 @@ function stopScheduledTasks() {
   }
   if (statusCheckTimer) {
     clearInterval(statusCheckTimer);
+  }
+  if (dailyCheckTask) {
+    dailyCheckTask.stop();
   }
   // 停止请求队列处理
   requestQueue.stopProcessing();

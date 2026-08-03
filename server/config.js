@@ -78,6 +78,17 @@ const configSchema = Joi.object({
   REDIS_PASSWORD: Joi.string().allow('').default(''),
   REDIS_DB: Joi.number().integer().min(0).max(15).default(0),
   REDIS_ENABLED: Joi.boolean().default(false),
+
+  // 「记录下载」功能配置
+  DOWNLOADS_DIR: Joi.string().default('./data/downloads'),
+  DOWNLOAD_RETENTION_DAYS: Joi.number().integer().min(1).default(365),
+  DOWNLOAD_CRON_EXPRESSION: Joi.string().default('5 0 * * *'),
+  MAP_TILE_URL: Joi.string().default('https://webst0{s}.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}'),
+  MAP_TILE_SUBDOMAINS: Joi.string().default('1,2,3,4'),
+  MAP_TILE_TIMEOUT: Joi.number().integer().min(1000).default(8000),
+  MAP_TILE_MAX_CONCURRENCY: Joi.number().integer().min(1).max(16).default(4),
+  MAP_TILE_RETRY: Joi.number().integer().min(0).default(2),
+  MAP_IMAGE_WIDTH: Joi.number().integer().min(400).max(4096).default(1200),
 });
 
 // 配置验证和加载
@@ -182,6 +193,19 @@ function loadConfig() {
       password: envConfig.REDIS_PASSWORD,
       db: envConfig.REDIS_DB,
       enabled: envConfig.REDIS_ENABLED,
+    },
+
+    // 「记录下载」功能配置
+    downloads: {
+      dir: envConfig.DOWNLOADS_DIR,
+      retentionDays: envConfig.DOWNLOAD_RETENTION_DAYS,
+      cronExpression: envConfig.DOWNLOAD_CRON_EXPRESSION,
+      mapTileUrl: envConfig.MAP_TILE_URL,
+      mapTileSubdomains: envConfig.MAP_TILE_SUBDOMAINS.split(',').map(s => s.trim()).filter(Boolean),
+      mapTileTimeout: envConfig.MAP_TILE_TIMEOUT,
+      mapTileMaxConcurrency: envConfig.MAP_TILE_MAX_CONCURRENCY,
+      mapTileRetry: envConfig.MAP_TILE_RETRY,
+      mapImageWidth: envConfig.MAP_IMAGE_WIDTH,
     },
   };
 }
@@ -340,4 +364,6 @@ module.exports = {
   DB_USER: currentConfig.database.user,
   DB_PASSWORD: currentConfig.database.password,
   DB_NAME: currentConfig.database.database,
+  // 「记录下载」配置（向后兼容快捷访问）
+  DOWNLOADS: currentConfig.downloads,
 };

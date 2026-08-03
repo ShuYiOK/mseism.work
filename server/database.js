@@ -424,6 +424,41 @@ async function initDatabase() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
 
+    // 分组变化快照表（每日 0 点检测变化用：通过签名比对名称/设备集合/坐标集合）
+    await query(`
+      CREATE TABLE IF NOT EXISTS group_change_snapshots (
+        id VARCHAR(36) PRIMARY KEY,
+        group_id VARCHAR(36) NOT NULL,
+        group_name VARCHAR(255) NOT NULL COMMENT '快照时的分组名称',
+        device_signature VARCHAR(64) NOT NULL COMMENT '成员设备ID集合的 md5（排序后拼接）',
+        coordinate_signature VARCHAR(64) NOT NULL COMMENT '成员坐标集合的 md5（id:coodX:coodY:coodZ 排序拼接）',
+        device_count INT NOT NULL DEFAULT 0,
+        snapshot_date DATE NOT NULL COMMENT '生成日期',
+        created_at INT NOT NULL,
+        INDEX idx_snap_group_date (group_id, snapshot_date),
+        INDEX idx_snap_date (snapshot_date)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
+    // 记录下载表（每次导出生成一条，供前端列表展示与下载）
+    await query(`
+      CREATE TABLE IF NOT EXISTS group_change_records (
+        id VARCHAR(36) PRIMARY KEY,
+        group_id VARCHAR(36) NOT NULL COMMENT '分组ID（即使分组被删也保留记录的分组名）',
+        group_name VARCHAR(255) NOT NULL COMMENT '导出时的分组名称',
+        file_name VARCHAR(255) NOT NULL COMMENT 'zip 文件名（含扩展名）',
+        file_path VARCHAR(512) NOT NULL COMMENT 'zip 在服务器上的相对路径',
+        file_size BIGINT DEFAULT 0 COMMENT 'zip 文件字节数',
+        device_count INT DEFAULT 0,
+        change_summary VARCHAR(255) NOT NULL COMMENT '本次变化摘要，如 名称变化/设备变化/坐标变化',
+        map_status VARCHAR(20) DEFAULT 'ok' COMMENT 'ok=带地形底图/fallback=网格示意图/none=无有效坐标',
+        snapshot_date DATE NOT NULL COMMENT '所属日期',
+        created_at INT NOT NULL,
+        INDEX idx_records_date (snapshot_date, created_at),
+        INDEX idx_records_group (group_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
     // 创建索引（逐个安全创建，避免已存在索引中断后续创建）
     await createIndexIfNotExists('devices', 'idx_devices_status', 'devices(status)');
     await createIndexIfNotExists('devices', 'idx_devices_online', 'devices(online)');
@@ -1497,6 +1532,134 @@ async function cleanupOldAnomalies(daysAgo = 7) {
   return result.affectedRows;
 }
 
+// ============== 分组变化快照 / 记录下载 ==============
+
+// 获取某分组最近一条快照（用于变化比对基准）
+async function getLatestGroupSnapshot(groupId) {
+  const rows = await query(`
+    SELECT * FROM group_change_snapshots
+    WHERE group_id = ?
+    ORDER BY snapshot_date DESC, created_at DESC
+    LIMIT 1
+  `, [groupId]);
+  return rows[0] || null;
+}
+
+// 获取某分组指定日期（及之前最近）的快照
+async function getGroupSnapshotOnOrBefore(groupId, snapshotDate) {
+  const rows = await query(`
+    SELECT * FROM group_change_snapshots
+    WHERE group_id = ? AND snapshot_date <= ?
+    ORDER BY snapshot_date DESC, created_at DESC
+    LIMIT 1
+  `, [groupId, snapshotDate]);
+  return rows[0] || null;
+}
+
+// 保存一条快照
+async function saveGroupSnapshot(data) {
+  const id = uuidv4();
+  const createdAt = Math.floor(Date.now() / 1000);
+  await query(`
+    INSERT INTO group_change_snapshots
+      (id, group_id, group_name, device_signature, coordinate_signature, device_count, snapshot_date, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `, [
+    id,
+    data.group_id,
+    data.group_name,
+    data.device_signature,
+    data.coordinate_signature,
+    data.device_count,
+    data.snapshot_date,
+    createdAt
+  ]);
+  return { id, ...data, created_at: createdAt };
+}
+
+// 判断某分组在指定日期是否已存在快照
+async function hasGroupSnapshotOnDate(groupId, snapshotDate) {
+  const rows = await query(`
+    SELECT id FROM group_change_snapshots
+    WHERE group_id = ? AND snapshot_date = ?
+    LIMIT 1
+  `, [groupId, snapshotDate]);
+  return rows.length > 0;
+}
+
+// 保存一条下载记录
+async function saveDownloadRecord(data) {
+  const id = uuidv4();
+  const createdAt = Math.floor(Date.now() / 1000);
+  await query(`
+    INSERT INTO group_change_records
+      (id, group_id, group_name, file_name, file_path, file_size, device_count, change_summary, map_status, snapshot_date, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `, [
+    id,
+    data.group_id,
+    data.group_name,
+    data.file_name,
+    data.file_path,
+    data.file_size || 0,
+    data.device_count || 0,
+    data.change_summary,
+    data.map_status || 'ok',
+    data.snapshot_date,
+    createdAt
+  ]);
+  return { id, ...data, created_at: createdAt };
+}
+
+// 分页获取下载记录（按日期从新到旧）
+async function getDownloadRecords({ limit = 50, offset = 0, groupId, groupName, startDate, endDate } = {}) {
+  const where = [];
+  const params = [];
+  if (groupId) { where.push('group_id = ?'); params.push(groupId); }
+  if (groupName) { where.push('group_name LIKE ?'); params.push(`%${groupName}%`); }
+  if (startDate) { where.push('snapshot_date >= ?'); params.push(startDate); }
+  if (endDate) { where.push('snapshot_date <= ?'); params.push(endDate); }
+  const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+  // limit/offset 在路由层已 parseInt 校验为安全整数，直接内联避免 mysql2 预处理对 LIMIT 占位符的限制
+  const safeLimit = Math.max(1, parseInt(limit) || 50);
+  const safeOffset = Math.max(0, parseInt(offset) || 0);
+
+  const rows = await query(`
+    SELECT * FROM group_change_records
+    ${whereSql}
+    ORDER BY snapshot_date DESC, created_at DESC
+    LIMIT ${safeLimit} OFFSET ${safeOffset}
+  `, params);
+
+  const countRows = await query(`
+    SELECT COUNT(*) as total FROM group_change_records ${whereSql}
+  `, params);
+
+  return { rows, total: countRows[0]?.total || 0 };
+}
+
+// 根据 ID 获取单条下载记录
+async function getDownloadRecordById(id) {
+  const rows = await query(`SELECT * FROM group_change_records WHERE id = ? LIMIT 1`, [id]);
+  return rows[0] || null;
+}
+
+// 根据 ID 删除下载记录（仅删 DB 记录，不删文件）
+async function deleteDownloadRecord(id) {
+  const result = await query(`DELETE FROM group_change_records WHERE id = ?`, [id]);
+  return result.affectedRows;
+}
+
+// 获取早于指定日期的所有记录（用于清理过期文件）
+async function getDownloadRecordsBeforeDate(beforeDate) {
+  return await query(`
+    SELECT * FROM group_change_records
+    WHERE snapshot_date < ?
+    ORDER BY snapshot_date ASC
+  `, [beforeDate]);
+}
+
 module.exports = {
   initDatabase,
   // 共享数据库连接池（供其他模块使用）
@@ -1539,6 +1702,16 @@ module.exports = {
   getAnomalousDevices,
   getAnomalyDetails,
   cleanupOldAnomalies,
+  // 分组变化快照 / 记录下载
+  getLatestGroupSnapshot,
+  getGroupSnapshotOnOrBefore,
+  saveGroupSnapshot,
+  hasGroupSnapshotOnDate,
+  saveDownloadRecord,
+  getDownloadRecords,
+  getDownloadRecordById,
+  deleteDownloadRecord,
+  getDownloadRecordsBeforeDate,
   // 健康检查
   checkPoolHealth,
   getPoolStatus,

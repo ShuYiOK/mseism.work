@@ -117,6 +117,7 @@ const sidebarCollapsed = ref(true) // 移动端默认收起
 const menuItems = [
   { path: '/admin', title: '仪表盘', icon: '📊', requireRoot: false },
   { path: '/admin/groups', title: '分组管理', icon: '📁', requireRoot: false },
+  { path: '/admin/downloads', title: '记录下载', icon: '📥', requireRoot: true },
   { path: '/admin/performance', title: '系统监控', icon: '📈', requireRoot: true },
   { path: '/admin/config', title: '系统配置', icon: '⚙️', requireRoot: true },
 ]

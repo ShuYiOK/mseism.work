@@ -103,5 +103,12 @@ backups/
 *.bak
 *.backup
 
+# 「记录下载」功能生成的导出文件（zip/png/csv 等，运行时产物）
+server/data/downloads/*
+!server/data/downloads/.gitkeep
+
+# ZCode 工具元数据目录
+.zcode/
+
 # WorkBuddy (IDE 辅助工具)
 .workbuddy/

@@ -32,6 +32,11 @@ const routes = [
         component: () => import('../views/AdminGroupManage.vue')
       },
       {
+        path: 'downloads',
+        name: 'AdminDownloads',
+        component: () => import('../views/AdminDownloads.vue')
+      },
+      {
         path: 'performance',
         name: 'PerformanceMonitor',
         component: () => import('../views/PerformanceMonitor.vue')

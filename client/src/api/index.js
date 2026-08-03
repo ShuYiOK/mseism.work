@@ -329,5 +329,43 @@ export const logApi = {
   getStats: (config) => api.get('/logs/stats', config)
 }
 
+// 记录下载相关 API（自定义分组变化记录）
+export const downloadApi = {
+  getList: (params = {}, config) => {
+    const query = new URLSearchParams()
+    if (params.limit) query.append('limit', params.limit)
+    if (params.offset) query.append('offset', params.offset)
+    if (params.groupId) query.append('groupId', params.groupId)
+    if (params.groupName) query.append('groupName', params.groupName)
+    if (params.startDate) query.append('startDate', params.startDate)
+    if (params.endDate) query.append('endDate', params.endDate)
+    const qs = query.toString()
+    return api.get(`/downloads${qs ? '?' + qs : ''}`, config)
+  },
+  getById: (id, config) => api.get(`/downloads/${id}`, config),
+  delete: (id, config) => api.delete(`/downloads/${id}`, config),
+  triggerCheck: (data = {}, config) => api.post('/downloads/check', data, config),
+  // 以 blob 方式下载（带 token），返回 { blob, fileName }
+  downloadBlob: async (id) => {
+    const resp = await api.instance.get(`/downloads/${id}/download`, {
+      responseType: 'blob',
+      timeout: 60000
+    })
+    let fileName = 'download.zip'
+    const cd = resp.headers['content-disposition']
+    if (cd) {
+      // 优先解析 filename*=UTF-8''xxx
+      const star = cd.match(/filename\*=UTF-8''([^;]+)/i)
+      if (star && star[1]) {
+        fileName = decodeURIComponent(star[1])
+      } else {
+        const m = cd.match(/filename="?([^";]+)"?/i)
+        if (m && m[1]) fileName = decodeURIComponent(m[1])
+      }
+    }
+    return { blob: resp.data, fileName }
+  }
+}
+
 // 导出所有 API 模块
 export default api
