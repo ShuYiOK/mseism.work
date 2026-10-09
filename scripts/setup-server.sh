@@ -79,6 +79,25 @@ if command -v ufw &>/dev/null; then
   log_success "防火墙规则已配置（22/80/443）"
 fi
 
+# 6. 安装中文字体（「记录下载」地图截图渲染依赖）
+#    缺失时，截图中的中文会被渲染成方框（豆腐块）
+if fc-list :lang=zh 2>/dev/null | grep -q .; then
+  log_success "中文字体已安装"
+else
+  log_info "安装中文字体（地图截图中文渲染依赖）..."
+  apt-get update -qq || true
+  if apt-get install -y fontconfig fonts-wqy-microhei; then
+    command -v fc-cache &>/dev/null && fc-cache -f >/dev/null 2>&1 || true
+    if fc-list :lang=zh 2>/dev/null | grep -q .; then
+      log_success "中文字体安装完成"
+    else
+      log_error "未检测到中文字体，截图中文可能显示为方框"
+    fi
+  else
+    log_error "中文字体安装失败，截图中文可能显示为方框"
+  fi
+fi
+
 log_success "========================================"
 log_success "  服务器初始化完成！"
 log_success "========================================"
